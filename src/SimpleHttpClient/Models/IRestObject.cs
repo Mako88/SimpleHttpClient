@@ -17,15 +17,4 @@ namespace SimpleHttpClient.Models
         /// </summary>
         string StringBody { get; set; }
     }
-
-    /// <summary>
-    /// Base typed RestObject
-    /// </summary>
-    public interface IRestObject<T> : IRestObject
-    {
-        /// <summary>
-        /// The body of the RestObject
-        /// </summary>
-        T Body { get; set; }
-    }
 }

@@ -22,8 +22,11 @@ namespace SimpleHttpClient.Models
     /// <summary>
     /// A typed HTTP response
     /// </summary>
-    public interface IResponse<T> : IResponse, IRestObject<T>
+    public interface IResponse<T> : IResponse
     {
-
+        /// <summary>
+        /// The body of the RestObject
+        /// </summary>
+        T Body { get; set; }
     }
 }

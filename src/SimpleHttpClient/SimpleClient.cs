@@ -36,36 +36,21 @@ namespace SimpleHttpClient
         /// Execute a request
         /// </summary>
         public async Task<IResponse> MakeRequest(IRequest request) =>
-            await MakeRequestInternal(request, new Response(), AddRequestBody, AddResponseBody).ConfigureAwait(false);
-
-        /// <summary>
-        /// Execute a request
-        /// </summary>
-        public async Task<IResponse> MakeRequest<T>(IRequest<T> request) =>
-            await MakeRequestInternal(request, new Response(), AddRequestBody, AddResponseBody).ConfigureAwait(false);
+            await MakeRequestInternal(request, new Response(), AddResponseBody).ConfigureAwait(false);
 
         /// <summary>
         /// Execute a request
         /// </summary>
         public async Task<IResponse<T>> MakeRequest<T>(IRequest request) =>
-            await MakeRequestInternal(request, new Response<T>(), AddRequestBody, AddResponseBody).ConfigureAwait(false);
+            await MakeRequestInternal(request, new Response<T>(), AddResponseBody).ConfigureAwait(false);
 
         /// <summary>
         /// Execute a request
         /// </summary>
-        public async Task<IResponse<R>> MakeRequest<T, R>(IRequest<T> request) =>
-            await MakeRequestInternal(request, new Response<R>(), AddRequestBody, AddResponseBody).ConfigureAwait(false);
-
-        /// <summary>
-        /// Execute a request
-        /// </summary>
-        private async Task<R> MakeRequestInternal<T, R>(T request,
-            R response,
-            Action<HttpRequestMessage, T> addRequestBody,
-            Func<HttpResponseMessage, R, Task> addResponseBody) where T : IRequest where R : IResponse
+        private async Task<T> MakeRequestInternal<T>(IRequest request, T response, Func<HttpResponseMessage, T, Task> addResponseBody) where T : IResponse
         {
             var httpRequest = CreateHttpRequest(request);
-            addRequestBody(httpRequest, request);
+            AddRequestBody(httpRequest, request);
 
             var httpResponse = await httpClient.SendAsync(httpRequest).ConfigureAwait(false);
 
@@ -97,25 +82,20 @@ namespace SimpleHttpClient
         /// </summary>
         private void AddRequestBody(HttpRequestMessage httpRequest, IRequest request)
         {
-            if (string.IsNullOrEmpty(request.StringBody))
+            if (request.FormUrlEncodedParameters.Any())
             {
-                return;
+                request.ContentType = "application/x-www-form-urlencoded";
+
+                httpRequest.Content = new FormUrlEncodedContent(request.FormUrlEncodedParameters);
             }
-
-            httpRequest.Content = new StringContent(request.StringBody, request.ContentEncoding, request.ContentType);
-        }
-
-        /// <summary>
-        /// Add a body to the request
-        /// </summary>
-        private void AddRequestBody<T>(HttpRequestMessage httpRequest, IRequest<T> request)
-        {
-            if (request.Body == null)
+            else if (!string.IsNullOrEmpty(request.StringBody))
             {
-                return;
+                httpRequest.Content = new StringContent(request.StringBody, request.ContentEncoding, request.ContentType);
             }
-
-            httpRequest.Content = new StringContent(serializer.Serialize(request.Body), request.ContentEncoding, request.ContentType);
+            else if (request.Body != null)
+            {
+                httpRequest.Content = new StringContent(serializer.Serialize(request.Body), request.ContentEncoding, request.ContentType);
+            }
         }
 
         /// <summary>
@@ -170,9 +150,12 @@ namespace SimpleHttpClient
             var builder = new UriBuilder(url);
             var query = HttpUtility.ParseQueryString(builder.Query);
 
-            foreach (var parameter in request.QueryStringParameters)
+            if (request.Method != HttpMethod.Post && request.Method != HttpMethod.Put)
             {
-                query[parameter.Key] = parameter.Value;
+                foreach (var parameter in request.QueryStringParameters)
+                {
+                    query[parameter.Key] = parameter.Value;
+                }
             }
 
             builder.Query = query.ToString();

@@ -16,16 +16,6 @@ namespace SimpleHttpClient
         /// <summary>
         /// Execute a request
         /// </summary>
-        Task<IResponse<R>> MakeRequest<T, R>(IRequest<T> request);
-
-        /// <summary>
-        /// Execute a request
-        /// </summary>
         Task<IResponse<T>> MakeRequest<T>(IRequest request);
-
-        /// <summary>
-        /// Execute a request
-        /// </summary>
-        Task<IResponse> MakeRequest<T>(IRequest<T> request);
     }
 }

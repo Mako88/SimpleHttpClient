@@ -5,7 +5,7 @@ using System.Text;
 namespace SimpleHttpClient.Models
 {
     /// <summary>
-    /// An untyped HTTP request
+    /// The base untyped HTTP request
     /// </summary>
     public interface IRequest : IRestObject
     {
@@ -18,6 +18,11 @@ namespace SimpleHttpClient.Models
         /// Query String Parameters on the request
         /// </summary>
         Dictionary<string, string> QueryStringParameters { get; set; }
+
+        /// <summary>
+        /// Form Url Encoded parameters for POST/PUT requests
+        /// </summary>
+        Dictionary<string, string> FormUrlEncodedParameters { get; set; }
 
         /// <summary>
         /// The request path that is appended to the client's host
@@ -38,13 +43,10 @@ namespace SimpleHttpClient.Models
         /// The content type of the request
         /// </summary>
         string ContentType { get; set; }
-    }
 
-    /// <summary>
-    /// A typed HTTP request
-    /// </summary>
-    public interface IRequest<T> : IRequest, IRestObject<T>
-    {
-
+        /// <summary>
+        /// The body of the request
+        /// </summary>
+        object Body { get; set; }
     }
 }
