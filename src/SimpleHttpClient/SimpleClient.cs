@@ -1,4 +1,5 @@
-﻿using SimpleHttpClient.Models;
+﻿using SimpleHttpClient.Logging;
+using SimpleHttpClient.Models;
 using SimpleHttpClient.Serialization;
 using System;
 using System.Collections.Generic;
@@ -17,19 +18,22 @@ namespace SimpleHttpClient
         private readonly string host;
         private readonly HttpClient httpClient;
         private readonly ISimpleHttpSerializer serializer;
+        private readonly ISimpleHttpLogger logger;
 
         /// <summary>
         /// Constructor
         /// </summary>
-        public SimpleClient(string host = null, HttpClient httpClient = null, ISimpleHttpSerializer serializer = null)
+        public SimpleClient(string host = null, HttpClient httpClient = null, ISimpleHttpSerializer serializer = null, ISimpleHttpLogger logger = null)
         {
+            this.host = host;
+
             // I'm pretty sure newing up an HttpClient isn't the best way to handle it
             // but apparently, there is no "best way": https://github.com/dotnet/aspnetcore/issues/28385#issuecomment-853766480
             // This is how RestSharp does it, so it's probably fine...
             this.httpClient = httpClient ?? new HttpClient();
 
             this.serializer = serializer ?? new SimpleHttpDefaultJsonSerializer();
-            this.host = host;
+            this.logger = logger;
         }
 
         /// <summary>
@@ -52,10 +56,14 @@ namespace SimpleHttpClient
             var httpRequest = CreateHttpRequest(request);
             AddRequestBody(httpRequest, request);
 
+            logger?.LogRequest(httpRequest.RequestUri.ToString(), request);
+
             var httpResponse = await httpClient.SendAsync(httpRequest).ConfigureAwait(false);
 
             PopulateResponse(httpResponse, response);
             await addResponseBody(httpResponse, response);
+
+            logger?.LogResponse(response);
 
             return response;
         }
