@@ -1,5 +1,5 @@
 # SimpleHttpClient
-An easy-to-use .NET wrapper for HttpClient that is easily mockable for unit testing.
+An easy-to-use .NET wrapper for HttpClient. No extension methods, and included interfaces allow for easy unit test mocking, and straightforward properties allows for easier debugging (the response body is available as a string and/or a typed object).
 
 ## Usage
     public class YourClass
