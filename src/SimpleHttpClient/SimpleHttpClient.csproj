@@ -4,10 +4,12 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <Title>Simple HTTP Client</Title>
-    <Authors>A_Future_Pilot</Authors>
-    <Description>A simple client for making HTTP requests</Description>
-    <PackageTags>http;rest;client</PackageTags>
-    <Version>0.0.1</Version>
+    <Authors>Mako88</Authors>
+    <Description>A wrapper for HttpClient that's easy to use</Description>
+    <PackageTags>http;rest;httpclient;client</PackageTags>
+    <Version>1.0.0</Version>
+    <PackageProjectUrl>https://github.com/Mako88/SimpleHttpClient</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Mako88/SimpleHttpClient</RepositoryUrl>
   </PropertyGroup>
 
   <ItemGroup>
