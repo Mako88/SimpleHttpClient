@@ -30,12 +30,12 @@ namespace SimpleHttpClient.Models
         string Path { get; set; }
 
         /// <summary>
-        /// A request URL to override the url set in the client
+        /// A complete URL to override the url set in the client
         /// </summary>
         string OverrideUrl { get; set; }
 
         /// <summary>
-        /// The encoding for the content
+        /// The encoding for the request content
         /// </summary>
         Encoding ContentEncoding { get; set; }
 

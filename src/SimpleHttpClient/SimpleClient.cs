@@ -21,8 +21,12 @@ namespace SimpleHttpClient
         private readonly ISimpleHttpLogger logger;
 
         /// <summary>
-        /// Constructor
+        /// Creates a SimpleClient instance.
         /// </summary>
+        /// <param name="host">The base url all requests sent through this client will use. If not provided, it is assumed that the path property on requests passed to this client will be full URLs</param>
+        /// <param name="httpClient">The HttpClient instance to use. If not provided, a new one is created</param>
+        /// <param name="serializer">The serializer to convert request/response bodies to types. If not provided, SimpleHttpDefaultJsonSerializer will be used</param>
+        /// <param name="logger">The logger for logging requests and responses</param>
         public SimpleClient(string host = null, HttpClient httpClient = null, ISimpleHttpSerializer serializer = null, ISimpleHttpLogger logger = null)
         {
             this.host = host;
@@ -37,14 +41,19 @@ namespace SimpleHttpClient
         }
 
         /// <summary>
-        /// Execute a request
+        /// Make an untyped request
         /// </summary>
+        /// <param name="request">The request that will be sent</param>
+        /// <returns>A response object without a strongly-typed body property</returns>
         public async Task<IResponse> MakeRequest(IRequest request) =>
             await MakeRequestInternal(request, new Response(), AddResponseBody).ConfigureAwait(false);
 
         /// <summary>
-        /// Execute a request
+        /// Make a typed request
         /// </summary>
+        /// <typeparam name="T">The type the response body will be serialized into</typeparam>
+        /// <param name="request">The request that will be sen</param>
+        /// <returns>A response object with a strongly-typed body property</returns>
         public async Task<IResponse<T>> MakeRequest<T>(IRequest request) =>
             await MakeRequestInternal(request, new Response<T>(), AddResponseBody).ConfigureAwait(false);
 

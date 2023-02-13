@@ -12,11 +12,6 @@ namespace SimpleHttpClient.Models
         /// The response status code
         /// </summary>
         HttpStatusCode StatusCode { get; set; }
-
-        /// <summary>
-        /// The exception thrown when attempting to serialize the body
-        /// </summary>
-        Exception SerializationException { get; set; }
     }
 
     /// <summary>
@@ -25,8 +20,13 @@ namespace SimpleHttpClient.Models
     public interface IResponse<T> : IResponse
     {
         /// <summary>
-        /// The body of the RestObject
+        /// The serialized response body
         /// </summary>
         T Body { get; set; }
+
+        /// <summary>
+        /// The exception thrown (if any) when attempting to serialize the body
+        /// </summary>
+        Exception SerializationException { get; set; }
     }
 }

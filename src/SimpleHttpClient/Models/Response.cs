@@ -12,11 +12,6 @@ namespace SimpleHttpClient.Models
         /// The response status code
         /// </summary>
         public HttpStatusCode StatusCode { get; set; }
-
-        /// <summary>
-        /// The exception thrown when attempting to serialize the body
-        /// </summary>
-        public Exception SerializationException { get; set; }
     }
 
     /// <summary>
@@ -28,5 +23,10 @@ namespace SimpleHttpClient.Models
         /// The typed response body
         /// </summary>
         public T Body { get; set; }
+
+        /// <summary>
+        /// The exception thrown (if any) when attempting to serialize the body
+        /// </summary>
+        public Exception SerializationException { get; set; }
     }
 }
