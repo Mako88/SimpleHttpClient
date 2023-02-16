@@ -1,9 +1,9 @@
 using Newtonsoft.Json.Linq;
 using SimpleHttpClient.Models;
 
-namespace SimpleHttpClient.Tests.Integration
+namespace SimpleHttpClient.Tests
 {
-    public class SimpleClientTests
+    public class SimpleClientIntegrationTests
     {
         [Theory]
         [InlineData("https://postman-echo.com", "get?param1=value1&param2=value2")]
