@@ -5,13 +5,21 @@
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <Title>Simple HTTP Client</Title>
     <Authors>A_Future_Pilot</Authors>
-    <Description>A wrapper for HttpClient that's easy to use</Description>
+    <Description>An easy-to-use .NET wrapper for HttpClient. No extension methods, and included interfaces allow for easy unit test mocking, and straightforward properties allows for easier debugging.</Description>
     <PackageTags>http;rest;httpclient;client</PackageTags>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <PackageProjectUrl>https://github.com/Mako88/SimpleHttpClient</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Mako88/SimpleHttpClient</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md">
+      <Pack>True</Pack>
+      <PackagePath>\</PackagePath>
+    </None>
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
