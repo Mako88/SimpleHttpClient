@@ -17,6 +17,11 @@ namespace SimpleHttpClient.Models
         /// Whether or not the request was successful
         /// </summary>
         public bool IsSuccessful { get; set; }
+
+        /// <summary>
+        /// The body as a byte array
+        /// </summary>
+        public byte[] ByteBody { get; set; }
     }
 
     /// <summary>

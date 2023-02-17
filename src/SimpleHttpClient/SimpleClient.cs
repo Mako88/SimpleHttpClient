@@ -149,6 +149,8 @@ namespace SimpleHttpClient
         private async Task AddResponseBody(HttpResponseMessage httpResponse, ISimpleResponse response)
         {
             response.StringBody = await httpResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
+
+            response.ByteBody = await httpResponse.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
         }
 
         /// <summary>
