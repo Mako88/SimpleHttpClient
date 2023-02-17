@@ -146,6 +146,9 @@ namespace SimpleHttpClient
             else if (request.Body != null)
             {
                 httpRequest.Content = new StringContent(Serializer.Serialize(request.Body), request.ContentEncoding, request.ContentType);
+
+                // Set StringBody to the serialized body for more accurate logging
+                request.StringBody = Serializer.Serialize(request.Body);
             }
         }
 

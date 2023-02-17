@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 
 namespace SimpleHttpClient.Serialization
 {
@@ -10,7 +11,15 @@ namespace SimpleHttpClient.Serialization
         /// <summary>
         /// Serialize the given object into a string
         /// </summary>
-        public string Serialize(object obj) => JsonConvert.SerializeObject(obj, Formatting.Indented);
+        public string Serialize(object obj) => JsonConvert.SerializeObject(obj, new JsonSerializerSettings
+        {
+            ContractResolver = new CamelCasePropertyNamesContractResolver(),
+            DefaultValueHandling = DefaultValueHandling.Include,
+            TypeNameHandling = TypeNameHandling.None,
+            NullValueHandling = NullValueHandling.Ignore,
+            Formatting = Formatting.Indented,
+            ConstructorHandling = ConstructorHandling.AllowNonPublicDefaultConstructor
+        });
 
         /// <summary>
         /// Deserialize the given string into an object of type T
