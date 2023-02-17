@@ -49,7 +49,7 @@ namespace SimpleHttpClient.Models
         /// <summary>
         /// Any status codes to be considered successful when setting IsSuccessful in addition to the 200-299 status codes
         /// </summary>
-        public IEnumerable<HttpStatusCode> AdditionalSuccessfulStatusCodes { get; set; }
+        public IEnumerable<HttpStatusCode> AdditionalSuccessfulStatusCodes { get; set; } = new List<HttpStatusCode>();
 
         /// <summary>
         /// The encoding for the request content
