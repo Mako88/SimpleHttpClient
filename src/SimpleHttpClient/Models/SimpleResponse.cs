@@ -27,7 +27,7 @@ namespace SimpleHttpClient.Models
     /// <summary>
     /// A typed HTTP response
     /// </summary>
-    public class Response<T> : SimpleResponse, IResponse<T>
+    public class SimpleResponse<T> : SimpleResponse, ISimpleResponse<T>
     {
         /// <summary>
         /// The typed response body

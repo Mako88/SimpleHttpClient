@@ -20,24 +20,23 @@ namespace SimpleHttpClient
         /// Creates a SimpleClient instance.
         /// </summary>
         /// <param name="host">The base url all requests sent through this client will use. If not provided, it is assumed that the path property on requests passed to this client will be full URLs</param>
-        /// <param name="HttpClient">The HttpClient instance to use. If not provided, a new one is created</param>
+        /// <param name="httpClient">The HttpClient instance to use. If not provided, a new one is created</param>
         /// <param name="serializer">The serializer to convert request/response bodies to types. If not provided, SimpleHttpDefaultJsonSerializer will be used</param>
-        /// <param name="Logger">The Logger for logging requests and responses</param>
-        public SimpleClient(string host = null, HttpClient HttpClient = null, ISimpleHttpSerializer serializer = null)
+        public SimpleClient(string host = null, HttpClient httpClient = null, ISimpleHttpSerializer serializer = null)
         {
             Host = host;
 
             // I'm pretty sure newing up an HttpClient isn't the best way to handle it
             // but apparently, there is no "best way": https://github.com/dotnet/aspnetcore/issues/28385#issuecomment-853766480
             // This is how RestSharp does it, so it's probably fine...
-            HttpClient = HttpClient ?? new HttpClient();
+            HttpClient = httpClient ?? new HttpClient();
 
             Serializer = serializer ?? new SimpleHttpDefaultJsonSerializer();
         }
 
         /// <summary>
         /// The base url all requests sent with this client will use.
-        /// If not set, it is assumed that the path property on requests passed to this client will be full URLs</param>
+        /// If not set, it is assumed that the path property on requests passed to this client will be full URLs
         /// </summary>
         public string Host { get; set; }
 
@@ -82,8 +81,8 @@ namespace SimpleHttpClient
         /// <typeparam name="T">The type the response body will be serialized into</typeparam>
         /// <param name="request">The request that will be sen</param>
         /// <returns>A response object with a strongly-typed body property</returns>
-        public async Task<IResponse<T>> MakeRequest<T>(ISimpleRequest request) =>
-            await MakeRequestInternal(request, new Response<T>(), AddResponseBody).ConfigureAwait(false);
+        public async Task<ISimpleResponse<T>> MakeRequest<T>(ISimpleRequest request) =>
+            await MakeRequestInternal(request, new SimpleResponse<T>(), AddResponseBody).ConfigureAwait(false);
 
         /// <summary>
         /// Get the URL the given request will be sent to by this client
@@ -163,7 +162,7 @@ namespace SimpleHttpClient
         /// <summary>
         /// Add the body to the response
         /// </summary>
-        private async Task AddResponseBody<T>(HttpResponseMessage httpResponse, IResponse<T> response)
+        private async Task AddResponseBody<T>(HttpResponseMessage httpResponse, ISimpleResponse<T> response)
         {
             await AddResponseBody(httpResponse, (ISimpleResponse) response).ConfigureAwait(false);
 

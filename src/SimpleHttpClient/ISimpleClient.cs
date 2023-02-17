@@ -15,7 +15,7 @@ namespace SimpleHttpClient
     {
         /// <summary>
         /// The base url all requests sent through this client will use.
-        /// If not set, it is assumed that the path property on requests passed to this client will be full URLs</param>
+        /// If not set, it is assumed that the path property on requests passed to this client will be full URLs
         /// </summary>
         string Host { get; set; }
 
@@ -59,7 +59,7 @@ namespace SimpleHttpClient
         /// <typeparam name="T">The type the response body will be serialized into</typeparam>
         /// <param name="request">The request that will be sen</param>
         /// <returns>A response object with a strongly-typed body property</returns>
-        Task<IResponse<T>> MakeRequest<T>(ISimpleRequest request);
+        Task<ISimpleResponse<T>> MakeRequest<T>(ISimpleRequest request);
 
         /// <summary>
         /// Get the URL the given request will be sent to by this client
