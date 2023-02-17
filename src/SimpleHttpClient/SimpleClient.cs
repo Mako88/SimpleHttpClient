@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Reflection;
 using System.Threading.Tasks;
 using System.Web;
 
@@ -119,6 +120,8 @@ namespace SimpleHttpClient
             var url = CreateUrl(request);
 
             var httpRequest = new HttpRequestMessage(request.Method, url);
+
+            httpRequest.Headers.Add("User-Agent", $"SimpleHttpClient/{new AssemblyName(typeof(SimpleClient).Assembly.FullName).Version}");
 
             foreach (var header in DefaultHeaders.Concat(request.Headers))
             {
