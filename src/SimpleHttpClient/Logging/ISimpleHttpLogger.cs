@@ -12,12 +12,12 @@ namespace SimpleHttpClient.Logging
         /// </summary>
         /// <param name="url">The URL the request is pointing to</param>
         /// <param name="request">The request object to log</param>
-        void LogRequest(string url, IRequest request);
+        void LogRequest(string url, ISimpleRequest request);
 
         /// <summary>
         /// Log a response
         /// </summary>
         /// <param name="response">The response object to log</param>
-        void LogResponse(IResponse response);
+        void LogResponse(ISimpleResponse response);
     }
 }

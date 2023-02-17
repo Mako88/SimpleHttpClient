@@ -18,7 +18,7 @@ namespace SimpleHttpClient.Tests
         {
             var client = new SimpleClient(host);
 
-            var request = new Request(path);
+            var request = new SimpleRequest(path);
 
             var response = await client.MakeRequest(request);
 
@@ -38,7 +38,7 @@ namespace SimpleHttpClient.Tests
         {
             var client = new SimpleClient(host);
 
-            var request = new Request(path)
+            var request = new SimpleRequest(path)
             {
                 OverrideUrl = overrideUrl,
             };
@@ -56,7 +56,7 @@ namespace SimpleHttpClient.Tests
         {
             var client = new SimpleClient("https://postman-echo.com");
 
-            var request = new Request("/get?param1=value1&param2=value2");
+            var request = new SimpleRequest("/get?param1=value1&param2=value2");
 
             var response = await client.MakeRequest(request);
 
@@ -71,7 +71,7 @@ namespace SimpleHttpClient.Tests
         {
             var client = new SimpleClient("https://postman-echo.com");
 
-            var request = new Request("/get?param1=value1&param2=value2");
+            var request = new SimpleRequest("/get?param1=value1&param2=value2");
 
             var response = await client.MakeRequest<PostmanEchoResponse>(request);
 
@@ -84,7 +84,7 @@ namespace SimpleHttpClient.Tests
         {
             var client = new SimpleClient("https://postman-echo.com");
 
-            var request = new Request("/get");
+            var request = new SimpleRequest("/get");
             request.QueryStringParameters.Add("param1", "value1");
             request.QueryStringParameters.Add("param2", "value2");
 
@@ -101,7 +101,7 @@ namespace SimpleHttpClient.Tests
         {
             var client = new SimpleClient("https://postman-echo.com");
 
-            var request = new Request("/get");
+            var request = new SimpleRequest("/get");
             request.QueryStringParameters.Add("param1", "value1");
             request.QueryStringParameters.Add("param2", "value2");
 
@@ -118,7 +118,7 @@ namespace SimpleHttpClient.Tests
         {
             var client = new SimpleClient(host);
 
-            var request = new Request(path);
+            var request = new SimpleRequest(path);
             request.QueryStringParameters.Add("param2", "value2");
 
             if (shouldIncludeParam1)
@@ -141,7 +141,7 @@ namespace SimpleHttpClient.Tests
         {
             var client = new SimpleClient(host);
 
-            var request = new Request(path);
+            var request = new SimpleRequest(path);
             request.QueryStringParameters.Add("param2", "value2");
 
             if (shouldIncludeParam1)
@@ -160,7 +160,7 @@ namespace SimpleHttpClient.Tests
         {
             var client = new SimpleClient("https://postman-echo.com");
 
-            var request = new Request("/post?param1=value1&param2=value2", HttpMethod.Post);
+            var request = new SimpleRequest("/post?param1=value1&param2=value2", HttpMethod.Post);
 
             var response = await client.MakeRequest(request);
 
@@ -175,7 +175,7 @@ namespace SimpleHttpClient.Tests
         {
             var client = new SimpleClient("https://postman-echo.com");
 
-            var request = new Request("/post?param1=value1&param2=value2", HttpMethod.Post);
+            var request = new SimpleRequest("/post?param1=value1&param2=value2", HttpMethod.Post);
 
             var response = await client.MakeRequest<PostmanEchoResponse>(request);
 
@@ -188,7 +188,7 @@ namespace SimpleHttpClient.Tests
         {
             var client = new SimpleClient("https://postman-echo.com");
 
-            var request = new Request("/post", HttpMethod.Post);
+            var request = new SimpleRequest("/post", HttpMethod.Post);
 
             request.FormUrlEncodedParameters.Add("param1", "value1");
             request.FormUrlEncodedParameters.Add("param2", "value2");
@@ -206,7 +206,7 @@ namespace SimpleHttpClient.Tests
         {
             var client = new SimpleClient("https://postman-echo.com");
 
-            var request = new Request("/post", HttpMethod.Post);
+            var request = new SimpleRequest("/post", HttpMethod.Post);
 
             request.FormUrlEncodedParameters.Add("param1", "value1");
             request.FormUrlEncodedParameters.Add("param2", "value2");

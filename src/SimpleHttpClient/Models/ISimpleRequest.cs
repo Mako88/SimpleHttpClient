@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using System.Net;
 using System.Net.Http;
 using System.Text;
 
@@ -7,57 +8,51 @@ namespace SimpleHttpClient.Models
     /// <summary>
     /// The base untyped HTTP request
     /// </summary>
-    public class Request : RestObject, IRequest
+    public interface ISimpleRequest : ISimpleRestObject
     {
-        /// <summary>
-        /// Constructor
-        /// </summary>
-        public Request(string path, HttpMethod method = null, object body = null)
-        {
-            Path = path;
-            Method = method ?? HttpMethod.Get;
-            StringBody = body as string;
-            Body = body;
-        }
-
         /// <summary>
         /// The HTTP Request Method
         /// </summary>
-        public HttpMethod Method { get; set; }
+        HttpMethod Method { get; set; }
 
         /// <summary>
         /// Query String Parameters on the request
         /// </summary>
-        public Dictionary<string, string> QueryStringParameters { get; set; } = new Dictionary<string, string>();
+        Dictionary<string, string> QueryStringParameters { get; set; }
 
         /// <summary>
         /// Form Url Encoded parameters for POST/PUT requests
         /// </summary>
-        public Dictionary<string, string> FormUrlEncodedParameters { get; set; } = new Dictionary<string, string>();
+        Dictionary<string, string> FormUrlEncodedParameters { get; set; }
 
         /// <summary>
         /// The request path that is appended to the client's host
         /// </summary>
-        public string Path { get; set; }
+        string Path { get; set; }
 
         /// <summary>
         /// A complete URL to override the url set in the client
         /// </summary>
-        public string OverrideUrl { get; set; }
+        string OverrideUrl { get; set; }
+
+        /// <summary>
+        /// Any status codes to be considered successful when setting IsSuccessful in addition to the 200-299 status codes
+        /// </summary>
+        IEnumerable<HttpStatusCode> AdditionalSuccessfulStatusCodes { get; set; }
 
         /// <summary>
         /// The encoding for the request content
         /// </summary>
-        public Encoding ContentEncoding { get; set; } = Encoding.UTF8;
+        Encoding ContentEncoding { get; set; }
 
         /// <summary>
         /// The content type of the request
         /// </summary>
-        public string ContentType { get; set; } = "application/json";
+        string ContentType { get; set; }
 
         /// <summary>
         /// The body of the request
         /// </summary>
-        public object Body { get; set; }
+        object Body { get; set; }
     }
 }

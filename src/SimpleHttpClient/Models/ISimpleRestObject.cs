@@ -5,16 +5,16 @@ namespace SimpleHttpClient.Models
     /// <summary>
     /// Base untyped RestObject
     /// </summary>
-    public class RestObject : IRestObject
+    public interface ISimpleRestObject
     {
         /// <summary>
         /// The headers
         /// </summary>
-        public Dictionary<string, string> Headers { get; set; } = new Dictionary<string, string>();
+        Dictionary<string, string> Headers { get; set; }
 
         /// <summary>
         /// The body as a string
         /// </summary>
-        public string StringBody { get; set; }
+        string StringBody { get; set; }
     }
 }

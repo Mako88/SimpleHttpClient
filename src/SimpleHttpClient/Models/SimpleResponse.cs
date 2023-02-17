@@ -6,27 +6,32 @@ namespace SimpleHttpClient.Models
     /// <summary>
     /// An untyped HTTP response
     /// </summary>
-    public interface IResponse : IRestObject
+    public class SimpleResponse : SimpleRestObject, ISimpleResponse
     {
         /// <summary>
         /// The response status code
         /// </summary>
-        HttpStatusCode StatusCode { get; set; }
+        public HttpStatusCode StatusCode { get; set; }
+
+        /// <summary>
+        /// Whether or not the request was successful
+        /// </summary>
+        public bool IsSuccessful { get; set; }
     }
 
     /// <summary>
     /// A typed HTTP response
     /// </summary>
-    public interface IResponse<T> : IResponse
+    public class Response<T> : SimpleResponse, IResponse<T>
     {
         /// <summary>
-        /// The serialized response body
+        /// The typed response body
         /// </summary>
-        T Body { get; set; }
+        public T Body { get; set; }
 
         /// <summary>
         /// The exception thrown (if any) when attempting to serialize the body
         /// </summary>
-        Exception SerializationException { get; set; }
+        public Exception SerializationException { get; set; }
     }
 }
