@@ -60,5 +60,12 @@ namespace SimpleHttpClient
         /// <param name="request">The request that will be sen</param>
         /// <returns>A response object with a strongly-typed body property</returns>
         Task<IResponse<T>> MakeRequest<T>(ISimpleRequest request);
+
+        /// <summary>
+        /// Get the URL the given request will be sent to by this client
+        /// </summary>
+        /// <param name="request">The request to determine the URL for</param>
+        /// <returns>The URL the given request will be made to</returns>
+        string GetUrl(ISimpleRequest request);
     }
 }

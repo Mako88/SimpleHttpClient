@@ -86,6 +86,13 @@ namespace SimpleHttpClient
             await MakeRequestInternal(request, new Response<T>(), AddResponseBody).ConfigureAwait(false);
 
         /// <summary>
+        /// Get the URL the given request will be sent to by this client
+        /// </summary>
+        /// <param name="request">The request to determine the URL for</param>
+        /// <returns>The URL the given request will be made to</returns>
+        public string GetUrl(ISimpleRequest request) => CreateUrl(request);
+
+        /// <summary>
         /// Execute a request
         /// </summary>
         private async Task<T> MakeRequestInternal<T>(ISimpleRequest request, T response, Func<HttpResponseMessage, T, Task> addResponseBody) where T : ISimpleResponse

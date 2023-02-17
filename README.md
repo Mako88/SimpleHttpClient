@@ -14,8 +14,8 @@ An easy-to-use .NET wrapper for HttpClient. No extension methods, and included i
 
         public async Task<string> MakeRequest()
         {
-            // Pass the path you want to call into the Request constructor
-            var request = new Request("/get");
+            // Pass the path you want to call into the SimpleRequest constructor
+            var request = new SimpleRequest("/get");
 
             // Call MakeRequest on the client, passing your request, and get your response back
             var response = await client.MakeRequest(request);
@@ -29,7 +29,7 @@ You can also call MakeRequest with a type to serialize to that type:
     public async Task<SomeResponseObject> MakeRequest()
     {
         // Pass the path you want to call into the Request constructor
-        var request = new Request("/get");
+        var request = new SimpleRequest("/get");
 
         // Call MakeRequest on the client, passing your request, and get your response back
         var response = await client.MakeRequest<SomeResponseObject>(request);
