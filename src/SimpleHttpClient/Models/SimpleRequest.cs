@@ -54,12 +54,12 @@ namespace SimpleHttpClient.Models
         /// <summary>
         /// The encoding for the request content
         /// </summary>
-        public Encoding ContentEncoding { get; set; } = Encoding.UTF8;
+        public Encoding ContentEncoding { get; set; } = Constants.DefaultEncoding;
 
         /// <summary>
         /// The content type of the request
         /// </summary>
-        public string ContentType { get; set; } = "application/json";
+        public string ContentType { get; set; } = Constants.DefaultContentType;
 
         /// <summary>
         /// The body of the request

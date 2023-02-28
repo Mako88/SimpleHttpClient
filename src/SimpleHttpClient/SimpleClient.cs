@@ -6,7 +6,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Reflection;
 using System.Threading.Tasks;
 using System.Web;
 
@@ -121,11 +120,22 @@ namespace SimpleHttpClient
 
             var httpRequest = new HttpRequestMessage(request.Method, url);
 
-            httpRequest.Headers.Add("User-Agent", $"SimpleHttpClient/{new AssemblyName(typeof(SimpleClient).Assembly.FullName).Version}");
+            httpRequest.Headers.Add("User-Agent", Constants.DefaultUserAgent);
 
             foreach (var header in DefaultHeaders.Concat(request.Headers))
             {
-                httpRequest.Headers.Add(header.Key, header.Value);
+                if (header.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Only update ContentType if it's still the default value
+                    if (request.ContentType == Constants.DefaultContentType)
+                    {
+                        request.ContentType = header.Value;
+                    }
+                }
+                else
+                {
+                    httpRequest.Headers.Add(header.Key, header.Value);
+                }
             }
 
             return httpRequest;
@@ -138,7 +148,11 @@ namespace SimpleHttpClient
         {
             if (request.FormUrlEncodedParameters.Any())
             {
-                request.ContentType = "application/x-www-form-urlencoded";
+                // Only update ContentType if it's still the default value
+                if (request.ContentType == Constants.DefaultContentType)
+                {
+                    request.ContentType = Constants.FormUrlEncodedContentType;
+                }
 
                 httpRequest.Content = new FormUrlEncodedContent(request.FormUrlEncodedParameters);
             }
@@ -211,12 +225,9 @@ namespace SimpleHttpClient
             var builder = new UriBuilder(url);
             var query = HttpUtility.ParseQueryString(builder.Query);
 
-            if (request.Method != HttpMethod.Post && request.Method != HttpMethod.Put)
+            foreach (var parameter in request.QueryStringParameters)
             {
-                foreach (var parameter in request.QueryStringParameters)
-                {
-                    query[parameter.Key] = parameter.Value;
-                }
+                query[parameter.Key] = parameter.Value;
             }
 
             builder.Query = query.ToString();
