@@ -68,6 +68,12 @@ namespace SimpleHttpClient
         public Dictionary<string, string> DefaultHeaders { get; set; } = new Dictionary<string, string>();
 
         /// <summary>
+        /// Timeout in seconds of all requests sent with this client
+        /// To disable the timeout, set to -1
+        /// </summary>
+        public int Timeout { get; set; } = 30;
+
+        /// <summary>
         /// Make an untyped request
         /// </summary>
         /// <param name="request">The request that will be sent</param>
@@ -94,7 +100,7 @@ namespace SimpleHttpClient
         /// <summary>
         /// Execute a request
         /// </summary>
-        private async Task<T> MakeRequestInternal<T>(ISimpleRequest request, T response, Func<HttpResponseMessage, T, Task> addResponseBody) where T : ISimpleResponse
+        private async Task<T> MakeRequestInternal<T>(ISimpleRequest request, T response, Func<HttpResponseMessage, T, ISimpleHttpSerializer, Task> addResponseBody) where T : ISimpleResponse
         {
             var httpRequest = CreateHttpRequest(request);
             AddRequestBody(httpRequest, request);
@@ -104,7 +110,7 @@ namespace SimpleHttpClient
             var httpResponse = await HttpClient.SendAsync(httpRequest).ConfigureAwait(false);
 
             PopulateResponse(httpResponse, response, request.AdditionalSuccessfulStatusCodes);
-            await addResponseBody(httpResponse, response);
+            await addResponseBody(httpResponse, response, request.SerializerOverride ?? Serializer);
 
             Logger?.LogResponse(response);
 
@@ -126,7 +132,8 @@ namespace SimpleHttpClient
             {
                 if (header.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Only update ContentType if it's still the default value
+                    // Only update Content-Type if it's still the default value
+                    // so we don't overwrite a custom Content-Type on the request
                     if (request.ContentType == Constants.DefaultContentType)
                     {
                         request.ContentType = header.Value;
@@ -137,6 +144,12 @@ namespace SimpleHttpClient
                     httpRequest.Headers.Add(header.Key, header.Value);
                 }
             }
+
+            var timeout = request.TimeoutOverride ?? Timeout;
+
+            HttpClient.Timeout = timeout == -1 ?
+                TimeSpan.FromMilliseconds(System.Threading.Timeout.Infinite) :
+                TimeSpan.FromSeconds(timeout);
 
             return httpRequest;
         }
@@ -162,17 +175,21 @@ namespace SimpleHttpClient
             }
             else if (request.Body != null)
             {
-                httpRequest.Content = new StringContent(Serializer.Serialize(request.Body), request.ContentEncoding, request.ContentType);
+                var serializer = request.SerializerOverride ?? Serializer;
+
+                var serializedBody = serializer.Serialize(request.Body);
+
+                httpRequest.Content = new StringContent(serializedBody, request.ContentEncoding, request.ContentType);
 
                 // Set StringBody to the serialized body for more accurate logging
-                request.StringBody = Serializer.Serialize(request.Body);
+                request.StringBody = serializedBody;
             }
         }
 
         /// <summary>
         /// Add the body to the response
         /// </summary>
-        private async Task AddResponseBody(HttpResponseMessage httpResponse, ISimpleResponse response)
+        private async Task AddResponseBody(HttpResponseMessage httpResponse, ISimpleResponse response, ISimpleHttpSerializer serializer)
         {
             response.StringBody = await httpResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
 
@@ -182,9 +199,9 @@ namespace SimpleHttpClient
         /// <summary>
         /// Add the body to the response
         /// </summary>
-        private async Task AddResponseBody<T>(HttpResponseMessage httpResponse, ISimpleResponse<T> response)
+        private async Task AddResponseBody<T>(HttpResponseMessage httpResponse, ISimpleResponse<T> response, ISimpleHttpSerializer serializer)
         {
-            await AddResponseBody(httpResponse, (ISimpleResponse) response).ConfigureAwait(false);
+            await AddResponseBody(httpResponse, (ISimpleResponse) response, serializer).ConfigureAwait(false);
 
             try
             {
@@ -220,7 +237,7 @@ namespace SimpleHttpClient
         /// </summary>
         private string CreateUrl(ISimpleRequest request)
         {
-            var url = !string.IsNullOrWhiteSpace(request.OverrideUrl) ? request.OverrideUrl : CombineUrls(Host, request.Path);
+            var url = !string.IsNullOrWhiteSpace(request.UrlOverride) ? request.UrlOverride : CombineUrls(Host, request.Path);
 
             var builder = new UriBuilder(url);
             var query = HttpUtility.ParseQueryString(builder.Query);

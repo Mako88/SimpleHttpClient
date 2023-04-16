@@ -40,7 +40,7 @@ namespace SimpleHttpClient.Tests
 
             var request = new SimpleRequest(path)
             {
-                OverrideUrl = overrideUrl,
+                UrlOverride = overrideUrl,
             };
 
             var response = await client.MakeRequest(request);

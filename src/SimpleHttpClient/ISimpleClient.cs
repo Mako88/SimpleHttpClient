@@ -47,6 +47,12 @@ namespace SimpleHttpClient
         Dictionary<string, string> DefaultHeaders { get; set; }
 
         /// <summary>
+        /// Timeout in seconds of all requests sent with this client
+        /// To disable the timeout, set to -1
+        /// </summary>
+        int Timeout { get; set; }
+
+        /// <summary>
         /// Make an untyped request
         /// </summary>
         /// <param name="request">The request that will be sent</param>

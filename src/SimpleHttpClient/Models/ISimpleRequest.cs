@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using SimpleHttpClient.Serialization;
+using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -33,12 +34,23 @@ namespace SimpleHttpClient.Models
         /// <summary>
         /// A complete URL to override the url set in the client
         /// </summary>
-        string OverrideUrl { get; set; }
+        string UrlOverride { get; set; }
+
+        /// <summary>
+        /// The serializer to use instead of the serializer set in the client
+        /// </summary>
+        ISimpleHttpSerializer SerializerOverride { get; set; }
 
         /// <summary>
         /// Any status codes to be considered successful when setting IsSuccessful in addition to the 200-299 status codes
         /// </summary>
         IEnumerable<HttpStatusCode> AdditionalSuccessfulStatusCodes { get; set; }
+
+        /// <summary>
+        /// Timeout in seconds for this request. This overrides the timeout set on the client
+        /// To disable the timeout, set to -1
+        /// </summary>
+        int? TimeoutOverride { get; set; }
 
         /// <summary>
         /// The encoding for the request content
