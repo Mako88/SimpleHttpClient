@@ -16,5 +16,10 @@ namespace SimpleHttpClient.Models
         /// The body as a string
         /// </summary>
         string StringBody { get; set; }
+
+        /// <summary>
+        /// An ID that is unique to a request/response pair
+        /// </summary>
+        string Id { get; }
     }
 }

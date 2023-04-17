@@ -1,4 +1,5 @@
 ﻿using SimpleHttpClient.Serialization;
+using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
@@ -20,6 +21,7 @@ namespace SimpleHttpClient.Models
             Method = method ?? HttpMethod.Get;
             StringBody = body as string;
             Body = body;
+            Id = Guid.NewGuid().ToString();
         }
 
         /// <summary>

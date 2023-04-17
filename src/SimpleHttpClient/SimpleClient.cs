@@ -79,7 +79,7 @@ namespace SimpleHttpClient
         /// <param name="request">The request that will be sent</param>
         /// <returns>A response object without a strongly-typed body property</returns>
         public async Task<ISimpleResponse> MakeRequest(ISimpleRequest request) =>
-            await MakeRequestInternal(request, new SimpleResponse(), AddResponseBody).ConfigureAwait(false);
+            await MakeRequestInternal(request, new SimpleResponse(request.Id), AddResponseBody).ConfigureAwait(false);
 
         /// <summary>
         /// Make a typed request
@@ -88,7 +88,7 @@ namespace SimpleHttpClient
         /// <param name="request">The request that will be sen</param>
         /// <returns>A response object with a strongly-typed body property</returns>
         public async Task<ISimpleResponse<T>> MakeRequest<T>(ISimpleRequest request) =>
-            await MakeRequestInternal(request, new SimpleResponse<T>(), AddResponseBody).ConfigureAwait(false);
+            await MakeRequestInternal(request, new SimpleResponse<T>(request.Id), AddResponseBody).ConfigureAwait(false);
 
         /// <summary>
         /// Get the URL the given request will be sent to by this client

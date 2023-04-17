@@ -9,6 +9,22 @@ namespace SimpleHttpClient.Models
     public class SimpleResponse : SimpleRestObject, ISimpleResponse
     {
         /// <summary>
+        /// Empty constructor for serialization
+        /// </summary>
+        public SimpleResponse() : base()
+        {
+
+        }
+
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        public SimpleResponse(string id) : this()
+        {
+            Id = id;
+        }
+
+        /// <summary>
         /// The response status code
         /// </summary>
         public HttpStatusCode StatusCode { get; set; }
@@ -29,6 +45,22 @@ namespace SimpleHttpClient.Models
     /// </summary>
     public class SimpleResponse<T> : SimpleResponse, ISimpleResponse<T>
     {
+        /// <summary>
+        /// Empty constructor for serialization
+        /// </summary>
+        public SimpleResponse() : base()
+        {
+
+        }
+
+        /// <summary>
+        /// Constructor
+        /// </summary>
+        public SimpleResponse(string id) : base(id)
+        {
+
+        }
+
         /// <summary>
         /// The typed response body
         /// </summary>
