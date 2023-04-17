@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 
@@ -32,6 +33,8 @@ namespace SimpleHttpClient
             HttpClient = httpClient ?? new HttpClient();
 
             Serializer = serializer ?? new SimpleHttpDefaultJsonSerializer();
+
+            HttpClient.Timeout = TimeSpan.FromMilliseconds(System.Threading.Timeout.Infinite);
         }
 
         /// <summary>
@@ -107,7 +110,25 @@ namespace SimpleHttpClient
 
             Logger?.LogRequest(httpRequest.RequestUri.ToString(), request);
 
-            var httpResponse = await HttpClient.SendAsync(httpRequest).ConfigureAwait(false);
+            var timeout = request.TimeoutOverride ?? Timeout;
+
+            HttpResponseMessage httpResponse;
+            using (var cts = new CancellationTokenSource())
+            {
+                if (timeout != -1)
+                {
+                    cts.CancelAfter(TimeSpan.FromSeconds(timeout));
+                }
+
+                try
+                {
+                    httpResponse = await HttpClient.SendAsync(httpRequest, cts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw new TimeoutException($"Request timed out after {timeout} seconds");
+                }
+            }
 
             PopulateResponse(httpResponse, response, request.AdditionalSuccessfulStatusCodes);
             await addResponseBody(httpResponse, response, request.SerializerOverride ?? Serializer);
@@ -144,12 +165,6 @@ namespace SimpleHttpClient
                     httpRequest.Headers.Add(header.Key, header.Value);
                 }
             }
-
-            var timeout = request.TimeoutOverride ?? Timeout;
-
-            HttpClient.Timeout = timeout == -1 ?
-                TimeSpan.FromMilliseconds(System.Threading.Timeout.Infinite) :
-                TimeSpan.FromSeconds(timeout);
 
             return httpRequest;
         }
