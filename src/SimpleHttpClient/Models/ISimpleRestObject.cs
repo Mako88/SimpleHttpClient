@@ -10,7 +10,7 @@ namespace SimpleHttpClient.Models
         /// <summary>
         /// The headers
         /// </summary>
-        Dictionary<string, string> Headers { get; set; }
+        Dictionary<string, string> Headers { get; }
 
         /// <summary>
         /// The body as a string

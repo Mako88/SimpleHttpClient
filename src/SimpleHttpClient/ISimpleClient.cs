@@ -39,12 +39,12 @@ namespace SimpleHttpClient
         /// Any status codes to be considered successful when setting IsSuccessful in addition to the 200-299 status codes.
         /// This applies to all requests sent with this client
         /// </summary>
-        IEnumerable<HttpStatusCode> AdditionalSuccessfulStatusCodes { get; set; }
+        List<HttpStatusCode> AdditionalSuccessfulStatusCodes { get; }
 
         /// <summary>
         /// Headers that will be included with all requests sent with this client
         /// </summary>
-        Dictionary<string, string> DefaultHeaders { get; set; }
+        Dictionary<string, string> DefaultHeaders { get; }
 
         /// <summary>
         /// Timeout in seconds of all requests sent with this client

@@ -32,12 +32,12 @@ namespace SimpleHttpClient.Models
         /// <summary>
         /// Query String Parameters on the request
         /// </summary>
-        public Dictionary<string, string> QueryStringParameters { get; set; } = new Dictionary<string, string>();
+        public Dictionary<string, string> QueryStringParameters { get; private set; } = new Dictionary<string, string>();
 
         /// <summary>
         /// Form Url Encoded parameters for POST/PUT requests
         /// </summary>
-        public Dictionary<string, string> FormUrlEncodedParameters { get; set; } = new Dictionary<string, string>();
+        public Dictionary<string, string> FormUrlEncodedParameters { get; private set; } = new Dictionary<string, string>();
 
         /// <summary>
         /// The request path that is appended to the client's host
@@ -57,7 +57,7 @@ namespace SimpleHttpClient.Models
         /// <summary>
         /// Any status codes to be considered successful when setting IsSuccessful in addition to the 200-299 status codes
         /// </summary>
-        public IEnumerable<HttpStatusCode> AdditionalSuccessfulStatusCodes { get; set; } = new List<HttpStatusCode>();
+        public List<HttpStatusCode> AdditionalSuccessfulStatusCodes { get; set; } = new List<HttpStatusCode>();
 
         /// <summary>
         /// Timeout in seconds for this request. This overrides the timeout set on the client

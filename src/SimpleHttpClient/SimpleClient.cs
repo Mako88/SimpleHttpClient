@@ -63,12 +63,12 @@ namespace SimpleHttpClient
         /// Any status codes to be considered successful when setting IsSuccessful in addition to the 200-299 status codes.
         /// This applies to all requests sent with this client
         /// </summary>
-        public IEnumerable<HttpStatusCode> AdditionalSuccessfulStatusCodes { get; set; } = new List<HttpStatusCode>();
+        public List<HttpStatusCode> AdditionalSuccessfulStatusCodes { get; private set; } = new List<HttpStatusCode>();
 
         /// <summary>
         /// Headers that will be included with all requests sent with this client
         /// </summary>
-        public Dictionary<string, string> DefaultHeaders { get; set; } = new Dictionary<string, string>();
+        public Dictionary<string, string> DefaultHeaders { get; private set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// Timeout in seconds of all requests sent with this client
@@ -147,9 +147,16 @@ namespace SimpleHttpClient
 
             var httpRequest = new HttpRequestMessage(request.Method, url);
 
-            httpRequest.Headers.Add("User-Agent", Constants.DefaultUserAgent);
+            // Ensure that we only add default headers that aren't already set on the request
+            var headers = request.Headers.Concat(DefaultHeaders.Where(x => !request.Headers.Keys.Contains(x.Key)))
+                .ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase);
 
-            foreach (var header in DefaultHeaders.Concat(request.Headers))
+            if (!headers.Keys.Contains("User-Agent", StringComparer.OrdinalIgnoreCase))
+            {
+                httpRequest.Headers.Add("User-Agent", Constants.DefaultUserAgent);
+            }
+
+            foreach (var header in headers)
             {
                 if (header.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase))
                 {
@@ -176,12 +183,6 @@ namespace SimpleHttpClient
         {
             if (request.FormUrlEncodedParameters.Any())
             {
-                // Only update ContentType if it's still the default value
-                if (request.ContentType == Constants.DefaultContentType)
-                {
-                    request.ContentType = Constants.FormUrlEncodedContentType;
-                }
-
                 httpRequest.Content = new FormUrlEncodedContent(request.FormUrlEncodedParameters);
             }
             else if (!string.IsNullOrEmpty(request.StringBody))
@@ -220,7 +221,7 @@ namespace SimpleHttpClient
 
             try
             {
-                response.Body = Serializer.Deserialize<T>(response.StringBody);
+                response.Body = serializer.Deserialize<T>(response.StringBody);
             }
             catch (Exception ex)
             {
@@ -233,8 +234,6 @@ namespace SimpleHttpClient
         /// </summary>
         private void PopulateResponse(HttpResponseMessage httpResponse, ISimpleResponse response, IEnumerable<HttpStatusCode> successfulStatusCodes)
         {
-            response.Headers = new Dictionary<string, string>();
-
             foreach (var header in httpResponse.Headers.Concat(httpResponse.Content.Headers))
             {
                 var value = string.Join(", ", header.Value);
