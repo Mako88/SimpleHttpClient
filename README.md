@@ -1,7 +1,13 @@
 # SimpleHttpClient
-An easy-to-use .NET wrapper for HttpClient. No extension methods, and included interfaces allow for easy unit test mocking, and straightforward properties allows for easier debugging (the response body is available as a string and/or a typed object).
+An easy-to-use .NET wrapper for HttpClient. No extension methods, and included interfaces allow for easy unit test mocking, and straightforward properties allows for easier debugging (the response body is available as a string, byte array, and/or a typed object).
 
-## Usage
+## Installation
+SimpleHttpClient is available on [NuGet](https://www.nuget.org/packages/SimpleHttpClient) and can installed through the NuGet Package Manager or by running
+```
+nuget install SimpleHttpClient
+```
+
+## Basic Usage
     public class YourClass
     {
         private readonly SimpleClient client;
