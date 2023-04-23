@@ -10,6 +10,26 @@ namespace SimpleHttpClient.Tests
 {
     public class SimpleRequestTests
     {
+        [Fact]
+        public void PropertyDefaults_AreCorrect()
+        {
+            var request = new SimpleRequest("test");
+
+            Assert.Equal("GET", request.Method.Method);
+            Assert.Empty(request.QueryStringParameters);
+            Assert.Empty(request.FormUrlEncodedParameters);
+            Assert.Empty(request.AdditionalSuccessfulStatusCodes);
+            Assert.NotNull(request.Id);
+        }
+
+        [Fact]
+        public void StringBody_IsSetCorrectly()
+        {
+            var request = new SimpleRequest("test", body: "testing");
+
+            Assert.Equal("testing", request.StringBody);
+        }
+
         [Theory]
         [InlineData("http://localhost", "/somepath")]
         [InlineData("", "http://localhost/somepath")]

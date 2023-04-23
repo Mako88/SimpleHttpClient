@@ -537,6 +537,19 @@ namespace SimpleHttpClient.Tests
             server.Stop();
         }
 
+        [Fact]
+        public async Task ResponseId_IsSet_ToRequestId()
+        {
+            var client = new SimpleClient("https://postman-echo.com");
+
+            var request = new SimpleRequest("/get");
+
+            var response = await client.MakeRequest(request);
+
+            Assert.NotNull(request.Id);
+            Assert.Equal(request.Id, response.Id);
+        }
+
         private HttpMethod GetHttpMethod(string method) => method switch
         {
             "get" => HttpMethod.Get,
