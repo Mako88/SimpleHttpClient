@@ -8,37 +8,40 @@ nuget install SimpleHttpClient
 ```
 
 ## Basic Usage
-    public class YourClass
+```csharp
+public class YourClass
+{
+    private readonly SimpleClient client;
+
+    public YourClass()
     {
-        private readonly SimpleClient client;
-
-        public YourClass()
-        {
-            // Pass the host you'll be calling into the SimpleClient constructor
-            client = new SimpleClient("https://postman-echo.com");
-        }
-
-        public async Task<string> MakeRequest()
-        {
-            // Pass the path you want to call into the SimpleRequest constructor
-            var request = new SimpleRequest("/get");
-
-            // Call MakeRequest on the client, passing your request, and get your response back
-            var response = await client.MakeRequest(request);
-            
-            return response.StringBody;
-        }
+        // Pass the host you'll be calling into the SimpleClient constructor
+        client = new SimpleClient("https://api.sampleapis.com");
     }
 
-You can also call MakeRequest with a type to serialize to that type:
-
-    public async Task<SomeResponseObject> MakeRequest()
+    public async Task<string> MakeRequest()
     {
-        // Pass the path you want to call into the Request constructor
-        var request = new SimpleRequest("/get");
+        // Pass the path you want to call into the SimpleRequest constructor
+        var request = new SimpleRequest("/coffee/hot");
 
         // Call MakeRequest on the client, passing your request, and get your response back
-        var response = await client.MakeRequest<SomeResponseObject>(request);
+        var response = await client.MakeRequest(request);
 
-        return response.Body;
+        return response.StringBody;
     }
+}
+```
+
+You can also call MakeRequest with a type to serialize to that type:
+```csharp
+public async Task<SomeResponseObject> MakeRequest()
+{
+    // Pass the path you want to call into the Request constructor
+    var request = new SimpleRequest("/get");
+
+    // Call MakeRequest on the client, passing your request, and get your response back
+    var response = await client.MakeRequest<SomeResponseObject>(request);
+
+    return response.Body;
+}
+```
