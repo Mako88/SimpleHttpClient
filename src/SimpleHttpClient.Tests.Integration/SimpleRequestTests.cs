@@ -10,6 +10,13 @@ namespace SimpleHttpClient.Tests
 {
     public class SimpleRequestTests
     {
+        private readonly SimpleClient client;
+
+        public SimpleRequestTests()
+        {
+            client = new SimpleClient("https://postman-echo.com");
+        }
+
         [Fact]
         public void PropertyDefaults_AreCorrect()
         {
@@ -81,8 +88,6 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task AdditionalSuccessfullStatusCodes_AreUsedFor_IsSuccess()
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var request = new SimpleRequest("/not/an/actual/path");
             request.AdditionalSuccessfulStatusCodes.Add(HttpStatusCode.NotFound);
 
@@ -136,8 +141,6 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task ContentEncoding_IsSet()
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var request = new SimpleRequest("/post", HttpMethod.Post, new
             {
                 param1 = "testing",

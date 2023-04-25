@@ -1,4 +1,5 @@
-﻿using SimpleHttpClient.Logging;
+﻿using SimpleHttpClient.Extensions;
+using SimpleHttpClient.Logging;
 using SimpleHttpClient.Models;
 using SimpleHttpClient.Serialization;
 using System;
@@ -6,6 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
@@ -15,26 +17,30 @@ namespace SimpleHttpClient
     /// <summary>
     /// The primary Simple Http Client
     /// </summary>
-    public class SimpleClient : ISimpleClient
+    public class SimpleClient : ISimpleClient, IDisposable
     {
+        private readonly IHttpClientFactory httpClientFactory = null;
+
+        private HttpClient httpClient = null;
+        private System.Timers.Timer httpClientReplacementTimer = null;
+        private bool disposedValue;
+
         /// <summary>
         /// Creates a SimpleClient instance.
         /// </summary>
         /// <param name="host">The base url all requests sent through this client will use. If not provided, it is assumed that the path property on requests passed to this client will be full URLs</param>
-        /// <param name="httpClient">The HttpClient instance to use. If not provided, a new one is created</param>
+        /// <param name="httpClientFactory">An IHttpClientFactory to create HttpClients. This is resolved through dependency injection when using the IServiceCollection.AddSimpleHttpClient() extension method</param>
         /// <param name="serializer">The serializer to convert request/response bodies to types. If not provided, SimpleHttpDefaultJsonSerializer will be used</param>
-        public SimpleClient(string host = null, HttpClient httpClient = null, ISimpleHttpSerializer serializer = null)
+        /// <param name="logger">The logger used for logging requests and responses</param>
+        public SimpleClient(string host = null, IHttpClientFactory httpClientFactory = null, ISimpleHttpSerializer serializer = null, ISimpleHttpLogger logger = null)
         {
             Host = host;
 
-            // I'm pretty sure newing up an HttpClient isn't the best way to handle it
-            // but apparently, there is no "best way": https://github.com/dotnet/aspnetcore/issues/28385#issuecomment-853766480
-            // This is how RestSharp does it, so it's probably fine...
-            HttpClient = httpClient ?? new HttpClient();
+            this.httpClientFactory = httpClientFactory;
 
             Serializer = serializer ?? new SimpleHttpDefaultJsonSerializer();
 
-            HttpClient.Timeout = TimeSpan.FromMilliseconds(System.Threading.Timeout.Infinite);
+            Logger = logger;
         }
 
         /// <summary>
@@ -42,12 +48,6 @@ namespace SimpleHttpClient
         /// If not set, it is assumed that the path property on requests passed to this client will be full URLs
         /// </summary>
         public string Host { get; set; }
-
-        /// <summary>
-        /// The HttpClient instance to use. If not set, a new one is created.
-        /// See https://github.com/dotnet/aspnetcore/issues/28385#issuecomment-853766480 for a discussion on the proper way to create an HttpClient
-        /// </summary>
-        public HttpClient HttpClient { get; set; }
 
         /// <summary>
         /// The serializer to convert request/response bodies to types. If not provided, SimpleHttpDefaultJsonSerializer will be used
@@ -122,7 +122,7 @@ namespace SimpleHttpClient
 
                 try
                 {
-                    httpResponse = await HttpClient.SendAsync(httpRequest, cts.Token).ConfigureAwait(false);
+                    httpResponse = await GetHttpClient().SendAsync(httpRequest, cts.Token).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException)
                 {
@@ -251,7 +251,7 @@ namespace SimpleHttpClient
         /// </summary>
         private string CreateUrl(ISimpleRequest request)
         {
-            var url = !string.IsNullOrWhiteSpace(request.UrlOverride) ? request.UrlOverride : CombineUrls(Host, request.Path);
+            var url = request.UrlOverride.HasValue() ? request.UrlOverride : CombineUrls(Host, request.Path);
 
             var builder = new UriBuilder(url);
             var query = HttpUtility.ParseQueryString(builder.Query);
@@ -271,12 +271,12 @@ namespace SimpleHttpClient
         /// </summary>
         private string CombineUrls(string url1, string url2)
         {
-            if (string.IsNullOrWhiteSpace(url1))
+            if (!url1.HasValue())
             {
                 return url2;
             }
 
-            if (string.IsNullOrWhiteSpace(url2))
+            if (!url2.HasValue())
             {
                 return url1;
             }
@@ -285,6 +285,115 @@ namespace SimpleHttpClient
             url2 = url2.TrimStart('/', '\\');
 
             return $"{url1}/{url2}";
+        }
+
+        /// <summary>
+        /// Try to get an HttpClient using best practices (which don't actually exist for .NET Standard 2.0 projects - See Ref 1)
+        /// Ref 1: https://github.com/dotnet/aspnetcore/issues/28385#issuecomment-853766480
+        /// Ref 2: https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/http/httpclient-guidelines
+        /// Ref 3: https://www.siakabaro.com/how-to-manage-httpclient-connections-in-net/
+        /// Ref 4: https://github.com/dotnet/runtime/issues/18348
+        /// </summary>
+        private HttpClient GetHttpClient()
+        {
+            // If we don't have a factory, all we can do is new up an HttpClient.
+            // Per Ref 3, this will cause DNS issues for long-lived connections so
+            // we replace the httpClient instance every 5 minutes, per Ref 4
+            if (httpClientFactory == null)
+            {
+                SetupHttpClientReplacementTimerIfNeeded(false);
+
+                if (httpClient == null)
+                {
+                    var handler = HttpClientConfigurator.GetMessageHandler();
+
+                    httpClient = new HttpClient(handler);
+
+                    HttpClientConfigurator.ConfigureHttpClient(httpClient);
+                }
+
+                return httpClient;
+            }
+
+            // Per Ref 2, don't create a new HttpClient for each request on .NET Framework
+            if (RuntimeInformation.FrameworkDescription.Contains("Framework", StringComparison.OrdinalIgnoreCase))
+            {
+                // Since this is a long-lived client, we need to setup
+                // periodic replacement using the factory, per Ref 4
+                SetupHttpClientReplacementTimerIfNeeded(true);
+
+                if (httpClient == null)
+                {
+                    httpClient = httpClientFactory.CreateClient(Constants.HttpClientNameString);
+                }
+
+                return httpClient;
+            }
+
+            return httpClientFactory.CreateClient(Constants.HttpClientNameString);
+        }
+
+        /// <summary>
+        /// Setup the HttpClient replacement timer if it hasn't already been setup
+        /// </summary>
+        private void SetupHttpClientReplacementTimerIfNeeded(bool shouldUseFactory)
+        {
+            if (httpClientReplacementTimer == null)
+            {
+                httpClientReplacementTimer = new System.Timers.Timer();
+                httpClientReplacementTimer.Elapsed += (sender, e) => ReplaceHttpClient(shouldUseFactory);
+                httpClientReplacementTimer.Interval = 300000; // 5 minutes in milliseconds
+                httpClientReplacementTimer.AutoReset = true;
+                httpClientReplacementTimer.Start();
+            }
+        }
+
+        /// <summary>
+        /// Update the HttpClient instance with a new one to prevent DNS going stale
+        /// </summary>
+        private void ReplaceHttpClient(bool shouldUseFactory)
+        {
+            if (shouldUseFactory)
+            {
+                httpClient = httpClientFactory.CreateClient(Constants.HttpClientNameString);
+            }
+            else
+            {
+                var handler = HttpClientConfigurator.GetMessageHandler();
+
+                var newClient = new HttpClient(handler);
+
+                HttpClientConfigurator.ConfigureHttpClient(newClient);
+
+                httpClient = newClient;
+            }
+        }
+
+        /// <summary>
+        /// Dispose
+        /// </summary>
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!disposedValue)
+            {
+                if (disposing)
+                {
+                    httpClientReplacementTimer?.Stop();
+                    httpClientReplacementTimer?.Dispose();
+                    httpClient?.Dispose();
+                }
+
+                disposedValue = true;
+            }
+        }
+
+        /// <summary>
+        /// Dispose
+        /// </summary>
+        public void Dispose()
+        {
+            Dispose(disposing: true);
+            GC.SuppressFinalize(this);
         }
     }
 }

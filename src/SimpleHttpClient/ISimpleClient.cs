@@ -3,7 +3,6 @@ using SimpleHttpClient.Models;
 using SimpleHttpClient.Serialization;
 using System.Collections.Generic;
 using System.Net;
-using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace SimpleHttpClient
@@ -18,12 +17,6 @@ namespace SimpleHttpClient
         /// If not set, it is assumed that the path property on requests passed to this client will be full URLs
         /// </summary>
         string Host { get; set; }
-
-        /// <summary>
-        /// The HttpClient instance to use. If not set, a new one is created.
-        /// See https://github.com/dotnet/aspnetcore/issues/28385#issuecomment-853766480 for a discussion on the proper way to create an HttpClient
-        /// </summary>
-        HttpClient HttpClient { get; set; }
 
         /// <summary>
         /// The serializer to convert request/response bodies to types. If not provided, SimpleHttpDefaultJsonSerializer will be used

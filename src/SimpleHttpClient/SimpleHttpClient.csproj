@@ -7,7 +7,7 @@
     <Authors>A_Future_Pilot</Authors>
     <Description>An easy-to-use .NET wrapper for HttpClient. No extension methods, and included interfaces allow for easy unit test mocking, and straightforward properties allows for easier debugging.</Description>
     <PackageTags>http;rest;httpclient;client</PackageTags>
-    <Version>3.0.0</Version>
+    <Version>4.0.0</Version>
     <PackageProjectUrl>https://github.com/Mako88/SimpleHttpClient</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Mako88/SimpleHttpClient</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -23,6 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Http" Version="7.0.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.2" />
   </ItemGroup>
 

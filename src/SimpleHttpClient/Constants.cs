@@ -27,5 +27,10 @@ namespace SimpleHttpClient
         /// The Content-Type string for Form Url Encoded parameters
         /// </summary>
         public static string FormUrlEncodedContentType = "application/x-www-form-urlencoded";
+
+        /// <summary>
+        /// The name used for named HttpClient creation
+        /// </summary>
+        public static string HttpClientNameString = "SimpleHttpClient";
     }
 }

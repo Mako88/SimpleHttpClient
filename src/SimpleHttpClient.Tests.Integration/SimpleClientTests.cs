@@ -12,12 +12,18 @@ namespace SimpleHttpClient.Tests
 {
     public class SimpleClientTests
     {
+        private readonly SimpleClient client;
+
+        public SimpleClientTests()
+        {
+            client = new SimpleClient("https://postman-echo.com");
+        }
+
         [Fact]
         public void PropertyDefaults_AreCorrect()
         {
             var client = new SimpleClient();
 
-            Assert.NotNull(client.HttpClient);
             Assert.IsType<SimpleHttpDefaultJsonSerializer>(client.Serializer);
             Assert.NotNull(client.Serializer);
             Assert.Null(client.Logger);
@@ -55,8 +61,6 @@ namespace SimpleHttpClient.Tests
         [InlineData("delete")]
         public async Task CommonHttpMethods_Succeed(string method)
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var request = new SimpleRequest($"/{method}", GetHttpMethod(method));
 
             var response = await client.MakeRequest<PostmanEchoResponse>(request);
@@ -67,8 +71,6 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task ParallelRequests_Succeed()
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var tasks = new List<Task>();
 
             for (int i = 0; i < 5; i++)
@@ -95,8 +97,6 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task TypedResponse_Succeeds()
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var request = new SimpleRequest("/get?param1=value1&param2=value2");
 
             var response = await client.MakeRequest<PostmanEchoResponse>(request);
@@ -109,8 +109,6 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task UntypedResponse_Succeeds()
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var request = new SimpleRequest("/get?param1=value1&param2=value2");
 
             var response = await client.MakeRequest(request);
@@ -125,8 +123,6 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task Request_WithUrlQueryString_Succeeds()
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var request = new SimpleRequest("/get?param1=value1&param2=value2");
 
             var response = await client.MakeRequest<PostmanEchoResponse>(request);
@@ -139,8 +135,6 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task Request_WithQueryStringParameters_Succeeds()
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var request = new SimpleRequest("/get");
             request.QueryStringParameters.Add("param1", "value1");
             request.QueryStringParameters.Add("param2", "value2");
@@ -155,8 +149,6 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task Request_WithUrlQueryString_AndQueryStringParameters_Succeeds()
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var request = new SimpleRequest("/get?param1=value1");
             request.QueryStringParameters.Add("param2", "value2");
 
@@ -170,8 +162,6 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task QueryStringParameter_Overwrites_UrlQueryString()
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var request = new SimpleRequest("/get?param1=willbeoverwritten&param2=alsooverwritten");
             request.QueryStringParameters.Add("param1", "value1");
             request.QueryStringParameters.Add("param2", "value2");
@@ -186,8 +176,6 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task Request_WithUrlFormEncodedParameters_Succeeds()
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var request = new SimpleRequest("/post", HttpMethod.Post);
 
             request.FormUrlEncodedParameters.Add("param1", "value1");
@@ -204,8 +192,6 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task Request_WithBody_Succeeds()
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var request = new SimpleRequest("/post", HttpMethod.Post, new
             {
                 param1 = "value1",
@@ -222,8 +208,6 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task Request_WithUrlFormEncodedParameters_Overwrites_CustomContentType()
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var request = new SimpleRequest("/post", HttpMethod.Post);
 
             request.ContentType = "application/json";
@@ -242,8 +226,6 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task UrlFormEncodedParamaters_OverwritesStringBody()
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var request = new SimpleRequest("/post", HttpMethod.Post);
             request.StringBody = "{ \"param1\": \"willbeoverwritten\", \"param2\": \"alsooverwritten\"}";
 
@@ -262,8 +244,6 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task UrlFormEncodedParamaters_OverwritesBody()
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var request = new SimpleRequest("/post", HttpMethod.Post, new
             {
                 param1 = "willbeoverwritten",
@@ -285,8 +265,6 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task StringBody_OverwritesBody()
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var request = new SimpleRequest("/post", HttpMethod.Post, new
             {
                 param1 = "willbeoverwritten",
@@ -305,8 +283,6 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task DefaultUserAgent_IsSet()
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var request = new SimpleRequest("/get");
 
             var response = await client.MakeRequest<PostmanEchoResponse>(request);
@@ -318,8 +294,6 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task CustomUserAgent_Overrides_DefaultUserAgent()
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var request = new SimpleRequest("/get");
 
             request.Headers["User-Agent"] = "CustomUserAgent";
@@ -333,8 +307,6 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task ContentTypeHeader_IsSetOnBodyContent()
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var request = new SimpleRequest("/post", HttpMethod.Post, new
             {
                 param1 = "testing",
@@ -353,8 +325,6 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task ContentTypeHeader_DoesNotOverride_RequestContentType()
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var request = new SimpleRequest("/post", HttpMethod.Post, new
             {
                 param1 = "testing",
@@ -390,8 +360,6 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task RequestHeaders_AreSent()
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var request = new SimpleRequest("/get");
             request.Headers["test1"] = "testValue1";
             request.Headers["test2"] = "testValue2";
@@ -406,8 +374,6 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task StringBody_IsSet_ToSerializedBody()
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var request = new SimpleRequest("/post", HttpMethod.Post, new
             {
                 param1 = "value1",
@@ -494,8 +460,6 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public void GetUrl_ReturnsCorrectUrl()
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var request = new SimpleRequest("/get");
 
             var url = client.GetUrl(request);
@@ -540,8 +504,6 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task ResponseId_IsSet_ToRequestId()
         {
-            var client = new SimpleClient("https://postman-echo.com");
-
             var request = new SimpleRequest("/get");
 
             var response = await client.MakeRequest(request);
