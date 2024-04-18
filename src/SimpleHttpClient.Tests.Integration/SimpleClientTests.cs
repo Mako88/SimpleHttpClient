@@ -217,8 +217,8 @@ namespace SimpleHttpClient.Tests
             var response = await client.MakeRequest<PostmanEchoResponse>(request);
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Equal("value1", response.Body?.Data?.Param1);
-            Assert.Equal("value2", response.Body?.Data?.Param2);
+            Assert.Equal("value1", response.Body?.Args?.Param1);
+            Assert.Equal("value2", response.Body?.Args?.Param2);
         }
 
         [Fact]
