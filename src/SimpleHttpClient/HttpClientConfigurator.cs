@@ -5,12 +5,12 @@ using System.Net.Http;
 namespace SimpleHttpClient
 {
     /// <summary>
-    /// Class to configure an HttpClient
+    /// Class to configure an HttpClient.
     /// </summary>
     internal static class HttpClientConfigurator
     {
         /// <summary>
-        /// Create a message handler with opinionated default settings
+        /// Create a message handler with opinionated default settings.
         /// </summary>
         public static HttpClientHandler GetMessageHandler()
         {
@@ -41,7 +41,7 @@ namespace SimpleHttpClient
         }
 
         /// <summary>
-        /// Configure the given HttpClient with opinionated default settings
+        /// Configure the given HttpClient with opinionated default settings.
         /// </summary>
         public static void ConfigureHttpClient(HttpClient client)
         {

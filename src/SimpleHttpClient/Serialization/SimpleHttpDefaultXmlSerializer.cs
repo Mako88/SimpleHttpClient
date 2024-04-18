@@ -6,12 +6,12 @@ using System.Xml.Serialization;
 namespace SimpleHttpClient.Serialization
 {
     /// <summary>
-    /// The default XML serializer - uses System.Xml.Serialization
+    /// The default XML serializer - uses System.Xml.Serialization.
     /// </summary>
     public class SimpleHttpDefaultXmlSerializer : ISimpleHttpSerializer
     {
         /// <summary>
-        /// Serialize the given object into a string
+        /// Serialize the given object into a string.
         /// </summary>
         public string Serialize(object obj)
         {
@@ -26,7 +26,7 @@ namespace SimpleHttpClient.Serialization
         }
 
         /// <summary>
-        /// Deserialize the given string into an object of type T
+        /// Deserialize the given string into an object of type T.
         /// </summary>
         public T Deserialize<T>(string data)
         {

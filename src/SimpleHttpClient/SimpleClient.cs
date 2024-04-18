@@ -28,87 +28,113 @@ namespace SimpleHttpClient
         /// <summary>
         /// Creates a SimpleClient instance.
         /// </summary>
-        /// <param name="host">The base url all requests sent through this client will use. If not provided, it is assumed that the path property on requests passed to this client will be full URLs</param>
-        /// <param name="httpClientFactory">An IHttpClientFactory to create HttpClients. This is resolved through dependency injection when using the IServiceCollection.AddSimpleHttpClient() extension method</param>
-        /// <param name="serializer">The serializer to convert request/response bodies to types. If not provided, SimpleHttpDefaultJsonSerializer will be used</param>
-        /// <param name="logger">The logger used for logging requests and responses</param>
-        public SimpleClient(string host = null, IHttpClientFactory httpClientFactory = null, ISimpleHttpSerializer serializer = null, ISimpleHttpLogger logger = null)
+        /// <param name="host">The base url all requests sent through this client will use. If not provided, it is assumed that the path property on requests passed to this client will be full URLs.</param>
+        /// <param name="httpClientFactory">An IHttpClientFactory to create HttpClients. This is resolved through dependency injection when using the IServiceCollection.AddSimpleHttpClient() extension method.</param>
+        /// <param name="serializer">The serializer to convert request/response bodies to types. If not provided, SimpleHttpDefaultJsonSerializer will be used.</param>
+        /// <param name="logger">The logger used for logging requests and responses.</param>
+        /// <param name="logRequest">An optional method for logging a request. This is called right before the request is sent.</param>
+        /// <param name="logResponse">An optional method for logging a response. This is called right after a response is received.</param>
+        public SimpleClient(string host = null,
+            IHttpClientFactory httpClientFactory = null,
+            ISimpleHttpSerializer serializer = null,
+            ISimpleHttpLogger logger = null,
+            LogRequest logRequest = null,
+            LogResponse logResponse = null)
         {
-            Host = host;
-
             this.httpClientFactory = httpClientFactory;
 
+            Host = host;
             Serializer = serializer ?? new SimpleHttpDefaultJsonSerializer();
-
             Logger = logger;
+            LogRequest = logRequest;
+            LogResponse = logResponse;
         }
 
         /// <summary>
         /// The base url all requests sent with this client will use.
-        /// If not set, it is assumed that the path property on requests passed to this client will be full URLs
+        /// If not set, it is assumed that the path property on requests passed to this client will be full URLs.
         /// </summary>
         public string Host { get; set; }
 
         /// <summary>
-        /// The serializer to convert request/response bodies to types. If not provided, SimpleHttpDefaultJsonSerializer will be used
+        /// The serializer to convert request/response bodies to types. If not provided, SimpleHttpDefaultJsonSerializer will be used.
         /// </summary>
         public ISimpleHttpSerializer Serializer { get; set; }
 
         /// <summary>
-        /// The Logger for logging requests and responses
+        /// The Logger for logging requests and responses.
         /// </summary>
         public ISimpleHttpLogger Logger { get; set; }
 
         /// <summary>
         /// Any status codes to be considered successful when setting IsSuccessful in addition to the 200-299 status codes.
-        /// This applies to all requests sent with this client
+        /// This applies to all requests sent with this client.
         /// </summary>
         public List<HttpStatusCode> AdditionalSuccessfulStatusCodes { get; private set; } = new List<HttpStatusCode>();
 
         /// <summary>
-        /// Headers that will be included with all requests sent with this client
+        /// Headers that will be included with all requests sent with this client.
         /// </summary>
         public Dictionary<string, string> DefaultHeaders { get; private set; } = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
-        /// Timeout in seconds of all requests sent with this client
-        /// To disable the timeout, set to -1
+        /// Timeout in seconds of all requests sent with this client.
+        /// To disable the timeout, set to -1.
         /// </summary>
         public int Timeout { get; set; } = 30;
 
         /// <summary>
-        /// Make an untyped request
+        /// An optional action for logging a request.
+        /// This is called right before the request is sent.
         /// </summary>
-        /// <param name="request">The request that will be sent</param>
-        /// <returns>A response object without a strongly-typed body property</returns>
+        public LogRequest LogRequest { get; set; }
+
+        /// <summary>
+        /// An optional action for logging a response.
+        /// This is called right after a response is received.
+        /// </summary>
+        public LogResponse LogResponse { get; set; }
+
+        /// <summary>
+        /// Make an untyped request.
+        /// </summary>
+        /// <param name="request">The request that will be sent.</param>
+        /// <returns>A response object without a strongly-typed body property.</returns>
         public async Task<ISimpleResponse> MakeRequest(ISimpleRequest request) =>
             await MakeRequestInternal(request, new SimpleResponse(request.Id), AddResponseBody).ConfigureAwait(false);
 
         /// <summary>
-        /// Make a typed request
+        /// Make a typed request.
         /// </summary>
-        /// <typeparam name="T">The type the response body will be serialized into</typeparam>
-        /// <param name="request">The request that will be sen</param>
-        /// <returns>A response object with a strongly-typed body property</returns>
+        /// <typeparam name="T">The type the response body will be serialized into.</typeparam>
+        /// <param name="request">The request that will be sent.</param>
+        /// <returns>A response object with a strongly-typed body property.</returns>
         public async Task<ISimpleResponse<T>> MakeRequest<T>(ISimpleRequest request) =>
             await MakeRequestInternal(request, new SimpleResponse<T>(request.Id), AddResponseBody).ConfigureAwait(false);
 
         /// <summary>
-        /// Get the URL the given request will be sent to by this client
+        /// Get the URL the given request will be sent to by this client.
         /// </summary>
-        /// <param name="request">The request to determine the URL for</param>
-        /// <returns>The URL the given request will be made to</returns>
+        /// <param name="request">The request to determine the URL for.</param>
+        /// <returns>The URL the given request will be made to.</returns>
         public string GetUrl(ISimpleRequest request) => CreateUrl(request);
 
         /// <summary>
-        /// Execute a request
+        /// Execute a request.
         /// </summary>
         private async Task<T> MakeRequestInternal<T>(ISimpleRequest request, T response, Func<HttpResponseMessage, T, ISimpleHttpSerializer, Task> addResponseBody) where T : ISimpleResponse
         {
             var httpRequest = CreateHttpRequest(request);
             AddRequestBody(httpRequest, request);
 
-            Logger?.LogRequest(httpRequest.RequestUri.ToString(), request);
+            var url = httpRequest.RequestUri.ToString();
+
+            Logger?.LogRequest(url, request);
+
+            if (LogRequest != null)
+            {
+                LogRequest(url, request);
+            }
 
             var timeout = request.TimeoutOverride ?? Timeout;
 
@@ -135,11 +161,16 @@ namespace SimpleHttpClient
 
             Logger?.LogResponse(response);
 
+            if (LogResponse != null)
+            {
+                LogResponse(response);
+            }
+
             return response;
         }
 
         /// <summary>
-        /// Create an HttpRequestMessage for use with HttpClient from an IRequest
+        /// Create an HttpRequestMessage for use with HttpClient from an IRequest.
         /// </summary>
         private HttpRequestMessage CreateHttpRequest(ISimpleRequest request)
         {
@@ -177,7 +208,7 @@ namespace SimpleHttpClient
         }
 
         /// <summary>
-        /// Add a body to the request
+        /// Add a body to the request.
         /// </summary>
         private void AddRequestBody(HttpRequestMessage httpRequest, ISimpleRequest request)
         {
@@ -203,7 +234,7 @@ namespace SimpleHttpClient
         }
 
         /// <summary>
-        /// Add the body to the response
+        /// Add the body to the response.
         /// </summary>
         private async Task AddResponseBody(HttpResponseMessage httpResponse, ISimpleResponse response, ISimpleHttpSerializer serializer)
         {
@@ -213,7 +244,7 @@ namespace SimpleHttpClient
         }
 
         /// <summary>
-        /// Add the body to the response
+        /// Add the body to the response.
         /// </summary>
         private async Task AddResponseBody<T>(HttpResponseMessage httpResponse, ISimpleResponse<T> response, ISimpleHttpSerializer serializer)
         {
@@ -230,7 +261,7 @@ namespace SimpleHttpClient
         }
 
         /// <summary>
-        /// Create a response from an httpResponse
+        /// Create a response from an httpResponse.
         /// </summary>
         private void PopulateResponse(HttpResponseMessage httpResponse, ISimpleResponse response, IEnumerable<HttpStatusCode> successfulStatusCodes)
         {
@@ -247,7 +278,7 @@ namespace SimpleHttpClient
         }
 
         /// <summary>
-        /// Create a URL for the given request
+        /// Create a URL for the given request.
         /// </summary>
         private string CreateUrl(ISimpleRequest request)
         {
@@ -267,7 +298,7 @@ namespace SimpleHttpClient
         }
 
         /// <summary>
-        /// Combine two urls, handling slashes
+        /// Combine two urls, handling slashes.
         /// </summary>
         private string CombineUrls(string url1, string url2)
         {
@@ -288,7 +319,7 @@ namespace SimpleHttpClient
         }
 
         /// <summary>
-        /// Try to get an HttpClient using best practices (which don't actually exist for .NET Standard 2.0 projects - See Ref 1)
+        /// Try to get an HttpClient using best practices (which don't actually exist for .NET Standard 2.0 projects - See Ref 1).
         /// Ref 1: https://github.com/dotnet/aspnetcore/issues/28385#issuecomment-853766480
         /// Ref 2: https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/http/httpclient-guidelines
         /// Ref 3: https://www.siakabaro.com/how-to-manage-httpclient-connections-in-net/
@@ -334,7 +365,7 @@ namespace SimpleHttpClient
         }
 
         /// <summary>
-        /// Setup the HttpClient replacement timer if it hasn't already been setup
+        /// Setup the HttpClient replacement timer if it hasn't already been setup.
         /// </summary>
         private void SetupHttpClientReplacementTimerIfNeeded(bool shouldUseFactory)
         {
@@ -349,7 +380,7 @@ namespace SimpleHttpClient
         }
 
         /// <summary>
-        /// Update the HttpClient instance with a new one to prevent DNS going stale
+        /// Update the HttpClient instance with a new one to prevent DNS going stale.
         /// </summary>
         private void ReplaceHttpClient(bool shouldUseFactory)
         {
@@ -370,7 +401,7 @@ namespace SimpleHttpClient
         }
 
         /// <summary>
-        /// Dispose
+        /// Dispose.
         /// </summary>
         protected virtual void Dispose(bool disposing)
         {
@@ -388,7 +419,7 @@ namespace SimpleHttpClient
         }
 
         /// <summary>
-        /// Dispose
+        /// Dispose.
         /// </summary>
         public void Dispose()
         {
@@ -396,4 +427,17 @@ namespace SimpleHttpClient
             GC.SuppressFinalize(this);
         }
     }
+
+    /// <summary>
+    /// The method used when logging a request.
+    /// </summary>
+    /// <param name="url">The URL the request is pointing to.</param>
+    /// <param name="request">The request object to log.</param>
+    public delegate void LogRequest(string url, ISimpleRequest request);
+
+    /// <summary>
+    /// The method used when logging a response.
+    /// </summary>
+    /// <param name="response">The response object to log.</param>
+    public delegate void LogResponse(ISimpleResponse response);
 }

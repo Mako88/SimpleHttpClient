@@ -206,6 +206,22 @@ namespace SimpleHttpClient.Tests
         }
 
         [Fact]
+        public async Task Get_Request_WithBody_Succeeds()
+        {
+            var request = new SimpleRequest("/get", HttpMethod.Get, new
+            {
+                param1 = "value1",
+                param2 = "value2",
+            });
+
+            var response = await client.MakeRequest<PostmanEchoResponse>(request);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal("value1", response.Body?.Data?.Param1);
+            Assert.Equal("value2", response.Body?.Data?.Param2);
+        }
+
+        [Fact]
         public async Task Request_WithUrlFormEncodedParameters_Overwrites_CustomContentType()
         {
             var request = new SimpleRequest("/post", HttpMethod.Post);
@@ -393,10 +409,7 @@ namespace SimpleHttpClient.Tests
         {
             var logger = new Mock<ISimpleHttpLogger>(MockBehavior.Loose);
 
-            var client = new SimpleClient("https://postman-echo.com")
-            {
-                Logger = logger.Object,
-            };
+            var client = new SimpleClient("https://postman-echo.com", null, null, logger.Object);
 
             var request = new SimpleRequest("/get");
 
@@ -510,6 +523,45 @@ namespace SimpleHttpClient.Tests
 
             Assert.NotNull(request.Id);
             Assert.Equal(request.Id, response.Id);
+        }
+
+        [Fact]
+        public async Task LogRequest_IsCalled_WhenNotNull()
+        {
+            var test = 0;
+
+            var request = new SimpleRequest("/get");
+
+            var client = new SimpleClient("https://postman-echo.com", null, null, null, (url, loggedRequest) =>
+            {
+                test = 1;
+                Assert.Equal("https://postman-echo.com/get", url);
+                Assert.Equal(request, loggedRequest);
+            });
+
+            await client.MakeRequest(request);
+
+            Assert.Equal(1, test);
+        }
+
+        [Fact]
+        public async Task LogResponse_IsCalled_WhenNotNull()
+        {
+            var test = 0;
+            ISimpleResponse loggedResponse = null;
+
+            var request = new SimpleRequest("/get");
+
+            var client = new SimpleClient("https://postman-echo.com", null, null, null, null, (response) =>
+            {
+                test = 1;
+                loggedResponse = response;
+            });
+
+            var response = await client.MakeRequest(request);
+
+            Assert.Equal(1, test);
+            Assert.Equal(response, loggedResponse);
         }
 
         private HttpMethod GetHttpMethod(string method) => method switch

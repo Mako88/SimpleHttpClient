@@ -3,22 +3,22 @@
 namespace SimpleHttpClient.Models
 {
     /// <summary>
-    /// Base untyped RestObject
+    /// Base untyped RestObject.
     /// </summary>
     public interface ISimpleRestObject
     {
         /// <summary>
-        /// The headers
+        /// The headers.
         /// </summary>
         Dictionary<string, string> Headers { get; }
 
         /// <summary>
-        /// The body as a string
+        /// The body as a string.
         /// </summary>
         string StringBody { get; set; }
 
         /// <summary>
-        /// An ID that is unique to a request/response pair
+        /// An ID that is unique to a request/response pair.
         /// </summary>
         string Id { get; }
     }

@@ -6,12 +6,12 @@ using System;
 namespace SimpleHttpClient.Extensions
 {
     /// <summary>
-    /// Extensions for the IServiceCollection
+    /// Extensions for the IServiceCollection.
     /// </summary>
     public static class IServiceCollectionExtensions
     {
         /// <summary>
-        /// Register an IHttpClientFactory and ISimpleClient
+        /// Register an IHttpClientFactory and ISimpleClient.
         /// </summary>
         public static IServiceCollection AddSimpleHttpClient(this IServiceCollection services,
             Func<IServiceProvider, ISimpleHttpSerializer> getSerializer = null,
