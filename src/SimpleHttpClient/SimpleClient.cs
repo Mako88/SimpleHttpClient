@@ -1,13 +1,14 @@
-﻿using SimpleHttpClient.Extensions;
+using SimpleHttpClient.Extensions;
 using SimpleHttpClient.Logging;
 using SimpleHttpClient.Models;
 using SimpleHttpClient.Serialization;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Runtime.InteropServices;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
@@ -19,20 +20,7 @@ namespace SimpleHttpClient
     /// </summary>
     public class SimpleClient : ISimpleClient, IDisposable
     {
-#if NETSTANDARD2_0
-        private const double HttpClientReplacementIntervalMs = 300000; // 5 minutes
-
-        // How long a retired HttpClient is kept alive before being disposed, so in-flight
-        // requests (and reasonably-lived streams) using it can finish first.
-        private const int HttpClientDisposeDelayMs = 300000; // 5 minutes
-
-        private System.Timers.Timer httpClientReplacementTimer = null;
-#endif
-
-        private readonly IHttpClientFactory httpClientFactory = null;
-        private readonly object httpClientLock = new object();
-
-        private HttpClient httpClient = null;
+        private readonly IHttpClientProvider httpClientProvider;
         private bool disposedValue;
 
         /// <summary>
@@ -51,7 +39,7 @@ namespace SimpleHttpClient
             LogRequest logRequest = null,
             LogResponse logResponse = null)
         {
-            this.httpClientFactory = httpClientFactory;
+            httpClientProvider = HttpClientProviderFactory.Create(httpClientFactory);
 
             Host = host;
             Serializer = serializer ?? new SimpleHttpDefaultJsonSerializer();
@@ -225,7 +213,7 @@ namespace SimpleHttpClient
 
                 try
                 {
-                    return await GetHttpClient().SendAsync(httpRequest, completionOption, cts.Token).ConfigureAwait(false);
+                    return await httpClientProvider.GetClient().SendAsync(httpRequest, completionOption, cts.Token).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
                 {
@@ -247,27 +235,8 @@ namespace SimpleHttpClient
         /// <summary>
         /// Create an HttpRequestMessage for use with HttpClient from an IRequest.
         /// </summary>
-        private HttpRequestMessage CreateHttpRequest(ISimpleRequest request)
-        {
-            var url = CreateUrl(request);
-
-            var httpRequest = new HttpRequestMessage(request.Method, url);
-
-            // Resolve a custom Content-Type header before the body is built so the body
-            // content is created with the correct content type. The remaining headers are
-            // applied after the body exists (see ApplyHeaders), which lets content-level
-            // headers be routed to the body content where HttpClient requires them.
-            var headers = MergeHeaders(request);
-
-            // Only update Content-Type if it's still the default value
-            // so we don't overwrite a custom Content-Type on the request
-            if (headers.TryGetValue("Content-Type", out var contentType) && request.ContentType == Constants.DefaultContentType)
-            {
-                request.ContentType = contentType;
-            }
-
-            return httpRequest;
-        }
+        private HttpRequestMessage CreateHttpRequest(ISimpleRequest request) =>
+            new HttpRequestMessage(request.Method, CreateUrl(request));
 
         /// <summary>
         /// Merge the request headers with the client's default headers, with the request's
@@ -313,24 +282,42 @@ namespace SimpleHttpClient
         /// </summary>
         private void AddRequestBody(HttpRequestMessage httpRequest, ISimpleRequest request)
         {
+            // A Content-Type header overrides the default content type (but never an explicitly-set
+            // one). Reflect the resolved value back onto the request so it shows what was sent.
+            if (request.ContentType == Constants.DefaultContentType &&
+                MergeHeaders(request).TryGetValue("Content-Type", out var headerContentType))
+            {
+                request.ContentType = headerContentType;
+            }
+
             if (request.FormUrlEncodedParameters.Any())
             {
                 httpRequest.Content = new FormUrlEncodedContent(request.FormUrlEncodedParameters);
             }
-            else if (!string.IsNullOrEmpty(request.StringBody))
+            else if (request.Body is string stringBody)
             {
-                httpRequest.Content = new StringContent(request.StringBody, request.ContentEncoding, request.ContentType);
+                // A string body is sent as-is - never re-serialized.
+                httpRequest.Content = new StringContent(stringBody, request.ContentEncoding, request.ContentType);
+
+                request.StringBody = stringBody;
             }
             else if (request.Body != null)
             {
+                // An object Body is the source of truth: it's serialized on every send (so re-sending
+                // after changing Body sends the new value), and the serialized form is reflected back
+                // onto StringBody.
                 var serializer = request.SerializerOverride ?? Serializer;
 
                 var serializedBody = serializer.Serialize(request.Body);
 
                 httpRequest.Content = new StringContent(serializedBody, request.ContentEncoding, request.ContentType);
 
-                // Set StringBody to the serialized body for more accurate logging
                 request.StringBody = serializedBody;
+            }
+            else if (!string.IsNullOrEmpty(request.StringBody))
+            {
+                // No Body, but a string body was set directly on the request.
+                httpRequest.Content = new StringContent(request.StringBody, request.ContentEncoding, request.ContentType);
             }
         }
 
@@ -339,9 +326,44 @@ namespace SimpleHttpClient
         /// </summary>
         private async Task AddResponseBody(HttpResponseMessage httpResponse, ISimpleResponse response, ISimpleHttpSerializer serializer)
         {
-            response.StringBody = await httpResponse.Content.ReadAsStringAsync().ConfigureAwait(false);
+            // Read the content once as bytes, then decode the string from those bytes, rather than
+            // reading (and copying) the whole body twice.
+            var bytes = await httpResponse.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
 
-            response.ByteBody = await httpResponse.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+            response.ByteBody = bytes;
+            response.StringBody = DecodeResponseBody(httpResponse.Content, bytes);
+        }
+
+        /// <summary>
+        /// Decode response bytes to a string using the response's charset (falling back to UTF-8),
+        /// honoring a byte-order mark if present - matching HttpContent.ReadAsStringAsync closely.
+        /// </summary>
+        private static string DecodeResponseBody(HttpContent content, byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0)
+            {
+                return string.Empty;
+            }
+
+            Encoding encoding = null;
+            var charSet = content.Headers.ContentType?.CharSet;
+            if (!string.IsNullOrWhiteSpace(charSet))
+            {
+                try
+                {
+                    encoding = Encoding.GetEncoding(charSet.Trim('"', '\'', ' '));
+                }
+                catch (ArgumentException)
+                {
+                    // Unknown/invalid charset - fall back to the default encoding below.
+                }
+            }
+
+            using (var stream = new MemoryStream(bytes))
+            using (var reader = new StreamReader(stream, encoding ?? Constants.DefaultEncoding, detectEncodingFromByteOrderMarks: true))
+            {
+                return reader.ReadToEnd();
+            }
         }
 
         /// <summary>
@@ -437,130 +459,6 @@ namespace SimpleHttpClient
         }
 
         /// <summary>
-        /// Try to get an HttpClient using best practices (which don't actually exist for .NET Standard 2.0 projects - See Ref 1).
-        /// Ref 1: https://github.com/dotnet/aspnetcore/issues/28385#issuecomment-853766480
-        /// Ref 2: https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/http/httpclient-guidelines
-        /// Ref 3: https://www.siakabaro.com/how-to-manage-httpclient-connections-in-net/
-        /// Ref 4: https://github.com/dotnet/runtime/issues/18348
-        /// </summary>
-        private HttpClient GetHttpClient()
-        {
-            // If we don't have a factory, all we can do is new up an HttpClient.
-            // Per Ref 3, this will cause DNS issues for long-lived connections so
-            // we replace the httpClient instance every 5 minutes, per Ref 4
-            if (httpClientFactory == null)
-            {
-                lock (httpClientLock)
-                {
-#if NETSTANDARD2_0
-                    // netstandard2.0 can't use SocketsHttpHandler.PooledConnectionLifetime, so we
-                    // replace the instance every 5 minutes per Ref 4 to keep DNS fresh. On modern
-                    // runtimes the handler from HttpClientConfigurator handles this, so the client
-                    // is created once and reused.
-                    SetupHttpClientReplacementTimerIfNeeded(false);
-#endif
-
-                    if (httpClient == null)
-                    {
-                        httpClient = CreateConfiguredHttpClient();
-                    }
-
-                    return httpClient;
-                }
-            }
-
-#if NETSTANDARD2_0
-            // Per Ref 2, don't create a new HttpClient for each request on .NET Framework
-            if (RuntimeInformation.FrameworkDescription.Contains("Framework", StringComparison.OrdinalIgnoreCase))
-            {
-                lock (httpClientLock)
-                {
-                    // Since this is a long-lived client, we need to setup
-                    // periodic replacement using the factory, per Ref 4
-                    SetupHttpClientReplacementTimerIfNeeded(true);
-
-                    if (httpClient == null)
-                    {
-                        httpClient = httpClientFactory.CreateClient(Constants.HttpClientNameString);
-                    }
-
-                    return httpClient;
-                }
-            }
-#endif
-
-            return httpClientFactory.CreateClient(Constants.HttpClientNameString);
-        }
-
-        /// <summary>
-        /// Create and configure a new HttpClient with the opinionated default handler.
-        /// </summary>
-        private HttpClient CreateConfiguredHttpClient()
-        {
-            var handler = HttpClientConfigurator.GetMessageHandler();
-
-            var client = new HttpClient(handler);
-
-            HttpClientConfigurator.ConfigureHttpClient(client);
-
-            return client;
-        }
-
-#if NETSTANDARD2_0
-        /// <summary>
-        /// Setup the HttpClient replacement timer if it hasn't already been setup.
-        /// Callers must hold httpClientLock.
-        /// </summary>
-        private void SetupHttpClientReplacementTimerIfNeeded(bool shouldUseFactory)
-        {
-            if (httpClientReplacementTimer == null)
-            {
-                httpClientReplacementTimer = new System.Timers.Timer();
-                httpClientReplacementTimer.Elapsed += (sender, e) => ReplaceHttpClient(shouldUseFactory);
-                httpClientReplacementTimer.Interval = HttpClientReplacementIntervalMs;
-                httpClientReplacementTimer.AutoReset = true;
-                httpClientReplacementTimer.Start();
-            }
-        }
-
-        /// <summary>
-        /// Update the HttpClient instance with a new one to prevent DNS going stale.
-        /// </summary>
-        private void ReplaceHttpClient(bool shouldUseFactory)
-        {
-            HttpClient retiredClient;
-
-            lock (httpClientLock)
-            {
-                retiredClient = httpClient;
-
-                httpClient = shouldUseFactory
-                    ? httpClientFactory.CreateClient(Constants.HttpClientNameString)
-                    : CreateConfiguredHttpClient();
-            }
-
-            // Only dispose clients we own. Factory-created clients are managed by the factory,
-            // which pools and rotates their handlers, so we must not dispose those ourselves.
-            if (retiredClient != null && !shouldUseFactory)
-            {
-                _ = DisposeRetiredClientAfterDelayAsync(retiredClient);
-            }
-        }
-
-        /// <summary>
-        /// Dispose a retired HttpClient after a grace period so that in-flight requests using
-        /// it can complete. Note that requests (or streams) still running after the grace period
-        /// will be aborted when the retired client is disposed.
-        /// </summary>
-        private async Task DisposeRetiredClientAfterDelayAsync(HttpClient retiredClient)
-        {
-            await Task.Delay(HttpClientDisposeDelayMs).ConfigureAwait(false);
-
-            retiredClient.Dispose();
-        }
-#endif
-
-        /// <summary>
         /// Dispose.
         /// </summary>
         protected virtual void Dispose(bool disposing)
@@ -569,11 +467,7 @@ namespace SimpleHttpClient
             {
                 if (disposing)
                 {
-#if NETSTANDARD2_0
-                    httpClientReplacementTimer?.Stop();
-                    httpClientReplacementTimer?.Dispose();
-#endif
-                    httpClient?.Dispose();
+                    httpClientProvider?.Dispose();
                 }
 
                 disposedValue = true;

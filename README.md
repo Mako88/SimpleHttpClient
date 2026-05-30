@@ -168,6 +168,8 @@ var request = new SimpleRequest("/post", HttpMethod.Post, new
 ```
 Alternatively, set `request.StringBody` to send a pre-serialized string body. You can control the content type and encoding via `request.ContentType` and `request.ContentEncoding`.
 
+After a request is sent, the request reflects what was actually sent: for an object `Body`, `request.StringBody` holds the serialized payload, and `request.ContentType` holds the resolved content type — handy for logging and debugging. An object `Body` is the source of truth and is re-serialized on every send (so changing `Body` and re-sending the same request sends the new value); a string body is sent as-is.
+
 > **Note:** On .NET Framework, sending a `GET` request with a body isn't supported — its `HttpClient` is backed by `HttpWebRequest`, which disallows it — and SimpleClient surfaces this as a `NotSupportedException` with an explanatory message. This works fine on modern runtimes (`net8.0`+); if you need to target .NET Framework, send the body with a `POST`/`PUT`/etc. instead.
 
 ## Streaming Responses

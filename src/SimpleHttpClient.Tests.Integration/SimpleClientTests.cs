@@ -296,15 +296,16 @@ namespace SimpleHttpClient.Tests
         }
 
         [Fact]
-        public async Task StringBody_OverwritesBody()
+        public async Task ObjectBody_TakesPrecedenceOver_StringBody()
         {
             var request = new SimpleRequest("/post", HttpMethod.Post, new
             {
-                param1 = "willbeoverwritten",
-                param2 = "alsooverwritten",
+                param1 = "value1",
+                param2 = "value2",
             });
 
-            request.StringBody = "{ \"param1\": \"value1\", \"param2\": \"value2\"}";
+            // A directly-set StringBody does not override an object Body - Body is the source of truth.
+            request.StringBody = "{ \"param1\": \"ignored\", \"param2\": \"ignored\"}";
 
             var response = await client.MakeRequest<PostmanEchoResponse>(request);
 
@@ -419,6 +420,21 @@ namespace SimpleHttpClient.Tests
 
             Assert.Equal("value1", body["param1"]?.ToString());
             Assert.Equal("value2", body["param2"]?.ToString());
+        }
+
+        [Fact]
+        public async Task ResendingRequest_WithChangedBody_SendsTheNewBody()
+        {
+            var request = new SimpleRequest("/post", HttpMethod.Post, new { param1 = "first" });
+
+            var first = await client.MakeRequest<PostmanEchoResponse>(request);
+            Assert.Equal("first", first.Body?.Data?.Param1);
+
+            // Changing Body and re-sending the same request object must send the new body.
+            request.Body = new { param1 = "second" };
+
+            var second = await client.MakeRequest<PostmanEchoResponse>(request);
+            Assert.Equal("second", second.Body?.Data?.Param1);
         }
 
         [Fact]
