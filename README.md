@@ -234,9 +234,13 @@ request.SerializerOverride = new SimpleHttpDefaultJsonSerializer();
 You can supply your own serializer by implementing `ISimpleHttpSerializer`.
 
 #### JSON serialization
-The default JSON serializer (`SimpleHttpDefaultJsonSerializer`) is backed by `System.Text.Json`. It serializes with camelCase names, omits null values, writes indented output, and deserializes case-insensitively. The equivalent `SimpleHttpSystemTextJsonSerializer` is also available for callers who reference it explicitly.
+The default JSON serializer (`SimpleHttpDefaultJsonSerializer`) is backed by `System.Text.Json`. It serializes with camelCase names, omits null values, writes indented output, and deserializes case-insensitively. For smoother interop it also reads numbers from JSON strings (e.g. `"123"`) and tolerates trailing commas and comments while reading. The equivalent `SimpleHttpSystemTextJsonSerializer` is also available for callers who reference it explicitly.
 
-> **Upgrading from v4?** As of **v5.0.0** the default serializer moved from `Newtonsoft.Json` to `System.Text.Json` and the `Newtonsoft.Json` dependency was removed. `System.Text.Json` is stricter, so watch for: types deserialized via a non-public parameterless constructor (add a public constructor or a `[JsonConstructor]`), and fields whose JSON shape varies (e.g. sometimes a string, sometimes an object) — these threw nothing under Newtonsoft but will under `System.Text.Json`. If you need the old behavior, implement `ISimpleHttpSerializer` with your own `Newtonsoft.Json` serializer and set it on the client.
+> **Upgrading from v4?** As of **v5.0.0** the default serializer moved from `Newtonsoft.Json` to `System.Text.Json` and the `Newtonsoft.Json` dependency was removed. The defaults above cover the most common differences, but `System.Text.Json` is stricter in two ways it won't soften:
+> - **Non-public parameterless constructors** aren't used — add a public constructor or a `[JsonConstructor]`.
+> - **Wrong-shape values aren't coerced** — a field that's sometimes a string and sometimes an object (and similar) threw nothing under Newtonsoft but throws here. For such fields, attach a custom `JsonConverter` to the property.
+>
+> If you'd rather keep the old behavior wholesale, implement `ISimpleHttpSerializer` with your own `Newtonsoft.Json` serializer and set it on the client.
 
 ### Logging
 You can log requests and responses by setting the `LogRequest` and `LogResponse` delegates (called immediately before a request is sent and immediately after a response is received), or by providing an `ISimpleHttpLogger`:
