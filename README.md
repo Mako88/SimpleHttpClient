@@ -168,7 +168,7 @@ var request = new SimpleRequest("/post", HttpMethod.Post, new
 ```
 Alternatively, set `request.StringBody` to send a pre-serialized string body. You can control the content type and encoding via `request.ContentType` and `request.ContentEncoding`.
 
-> **Note:** On .NET Framework, sending a `GET` request with a body throws a `ProtocolViolationException` (its `HttpClient` is backed by `HttpWebRequest`, which disallows it). This works on modern runtimes (`net8.0`+); if you need to target .NET Framework, send the body with a `POST`/`PUT`/etc. instead.
+> **Note:** On .NET Framework, sending a `GET` request with a body isn't supported — its `HttpClient` is backed by `HttpWebRequest`, which disallows it — and SimpleClient surfaces this as a `NotSupportedException` with an explanatory message. This works fine on modern runtimes (`net8.0`+); if you need to target .NET Framework, send the body with a `POST`/`PUT`/etc. instead.
 
 ## Streaming Responses
 For responses you want to consume as they arrive — for example Server-Sent Events (SSE) or large downloads — use `MakeStreamRequest`. Unlike `MakeRequest`, it does **not** buffer the body into memory; it returns the live network stream as soon as the response headers are available.

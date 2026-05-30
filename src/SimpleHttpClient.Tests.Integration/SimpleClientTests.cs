@@ -205,10 +205,22 @@ namespace SimpleHttpClient.Tests
             Assert.Equal("value2", response.Body?.Data?.Param2);
         }
 
-#if !NETFRAMEWORK
-        // .NET Framework's HttpClient (backed by HttpWebRequest) throws
-        // ProtocolViolationException for a GET request with a body, so this scenario is
-        // only supported on modern runtimes.
+#if NETFRAMEWORK
+        [Fact]
+        public async Task Get_Request_WithBody_ThrowsOnNetFramework()
+        {
+            // .NET Framework's HttpClient (backed by HttpWebRequest) rejects a GET with a body;
+            // SimpleClient surfaces this as a NotSupportedException with an actionable message.
+            var request = new SimpleRequest("/get", HttpMethod.Get, new
+            {
+                param1 = "value1",
+                param2 = "value2",
+            });
+
+            await Assert.ThrowsAsync<NotSupportedException>(
+                async () => await client.MakeRequest<PostmanEchoResponse>(request));
+        }
+#else
         [Fact]
         public async Task Get_Request_WithBody_Succeeds()
         {

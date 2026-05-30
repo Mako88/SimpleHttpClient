@@ -231,6 +231,16 @@ namespace SimpleHttpClient
                 {
                     throw new TimeoutException($"Request timed out after {timeout} seconds");
                 }
+                catch (ProtocolViolationException ex)
+                {
+                    // .NET Framework's HttpClient (backed by HttpWebRequest) rejects a request body
+                    // on methods that don't allow one - most commonly a GET with a body. Surface a
+                    // clearer, actionable error than the raw ProtocolViolationException.
+                    throw new NotSupportedException(
+                        "Sending a request body with this HTTP method isn't supported on this platform. " +
+                        ".NET Framework's HttpClient rejects it (for example, a GET request with a body); " +
+                        "use a body-bearing method such as POST or PUT, or target a modern runtime.", ex);
+                }
             }
         }
 
