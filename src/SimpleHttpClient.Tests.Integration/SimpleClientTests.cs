@@ -433,10 +433,17 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task Timeout_WaitsTheCorrectAmountOfTime()
         {
-            var client = new SimpleClient("http://localhost/some/nonexistant/path");
+            // Use a server that delays well past the timeout so the timeout reliably fires,
+            // rather than relying on a connection to a dead host hanging (which fails fast
+            // with a connection-refused on some platforms instead of timing out).
+            var server = WireMockServer.Start();
+            server.Given(Request.Create().WithPath("/slow").UsingGet())
+                .RespondWith(Response.Create().WithStatusCode(HttpStatusCode.OK).WithDelay(TimeSpan.FromSeconds(30)));
+
+            var client = new SimpleClient(server.Url);
             client.Timeout = 2;
 
-            var request = new SimpleRequest("/get");
+            var request = new SimpleRequest("/slow");
 
             Exception? exception = null;
 
@@ -468,6 +475,8 @@ namespace SimpleHttpClient.Tests
             await Task.WhenAll(new[] { task1, task2 });
 
             Assert.IsType<TimeoutException>(exception);
+
+            server.Stop();
         }
 
         [Fact]

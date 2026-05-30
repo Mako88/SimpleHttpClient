@@ -1,10 +1,13 @@
-﻿using Moq;
+using Moq;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using SimpleHttpClient.Models;
 using SimpleHttpClient.Serialization;
 using System.Net;
 using System.Text;
+using WireMock.RequestBuilders;
+using WireMock.ResponseBuilders;
+using WireMock.Server;
 
 namespace SimpleHttpClient.Tests
 {
@@ -100,10 +103,16 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task TimeoutOverride_OverridesClientTimeout()
         {
-            var client = new SimpleClient("http://localhost/some/nonexistant/path");
-            client.Timeout = 3;
+            // A server that delays past the timeout, so the timeout reliably fires
+            // (rather than depending on a connection to a dead host hanging).
+            var server = WireMockServer.Start();
+            server.Given(Request.Create().WithPath("/slow").UsingGet())
+                .RespondWith(Response.Create().WithStatusCode(HttpStatusCode.OK).WithDelay(TimeSpan.FromSeconds(30)));
 
-            var request = new SimpleRequest("/get");
+            var client = new SimpleClient(server.Url);
+            client.Timeout = 5;
+
+            var request = new SimpleRequest("/slow");
             request.TimeoutOverride = 1;
 
             Exception? exception = null;
@@ -136,6 +145,8 @@ namespace SimpleHttpClient.Tests
             await Task.WhenAll(new[] { task1, task2 });
 
             Assert.IsType<TimeoutException>(exception);
+
+            server.Stop();
         }
 
         [Fact]
