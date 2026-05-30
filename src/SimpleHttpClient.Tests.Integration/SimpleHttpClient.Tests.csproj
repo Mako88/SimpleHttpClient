@@ -14,6 +14,8 @@
   <!-- net48 SDK-style projects need an explicit reference to framework System.Net.Http. -->
   <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
     <Reference Include="System.Net.Http" />
+    <!-- .NET Framework doesn't get the implicit System.Net.Http global using that .NET Core does. -->
+    <Using Include="System.Net.Http" />
   </ItemGroup>
 
   <ItemGroup>
