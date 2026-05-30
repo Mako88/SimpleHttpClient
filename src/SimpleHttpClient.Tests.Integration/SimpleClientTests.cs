@@ -578,7 +578,7 @@ namespace SimpleHttpClient.Tests
             "get" => HttpMethod.Get,
             "post" => HttpMethod.Post,
             "put" => HttpMethod.Put,
-            "patch" => HttpMethod.Patch,
+            "patch" => new HttpMethod("PATCH"),
             "delete" => HttpMethod.Delete,
             _ => HttpMethod.Get,
         };
