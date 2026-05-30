@@ -1,0 +1,38 @@
+name: Release
+
+# Publishes to NuGet when a GitHub Release is published. The package version is taken
+# from the release tag (e.g. tag "v4.4.0" or "4.4.0" publishes version 4.4.0), so there's
+# no need to edit <Version> in the csproj by hand.
+#
+# Requires a repository secret named NUGET_API_KEY (Settings > Secrets and variables >
+# Actions) containing a nuget.org API key with push rights for the SimpleHttpClient package.
+on:
+  release:
+    types: [ published ]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Derive version from release tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Test
+        run: dotnet test src/SimpleHttpClient.Tests.Integration/SimpleHttpClient.Tests.csproj -c Release
+
+      # GeneratePackageOnBuild is enabled, so a Release build emits the .nupkg.
+      - name: Build package
+        run: dotnet build src/SimpleHttpClient/SimpleHttpClient.csproj -c Release -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Push to NuGet
+        run: dotnet nuget push "src/SimpleHttpClient/bin/Release/*.nupkg" -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json --skip-duplicate
