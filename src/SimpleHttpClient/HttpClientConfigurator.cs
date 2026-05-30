@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Net;
 using System.Net.Http;
 
@@ -10,7 +10,20 @@ namespace SimpleHttpClient
     internal static class HttpClientConfigurator
     {
         /// <summary>
-        /// Create a message handler with opinionated default settings.
+        /// Create a new HttpClient with the opinionated default handler and settings applied.
+        /// </summary>
+        public static HttpClient GetConfiguredHttpClient()
+        {
+            var client = new HttpClient(GetMessageHandler());
+
+            ConfigureHttpClient(client);
+
+            return client;
+        }
+
+        /// <summary>
+        /// Create a message handler with opinionated default settings. Used directly when
+        /// registering the named HttpClient with an IHttpClientFactory.
         /// </summary>
         public static HttpMessageHandler GetMessageHandler()
         {
@@ -54,7 +67,8 @@ namespace SimpleHttpClient
         }
 
         /// <summary>
-        /// Configure the given HttpClient with opinionated default settings.
+        /// Configure the given HttpClient with opinionated default settings. Used directly when
+        /// registering the named HttpClient with an IHttpClientFactory.
         /// </summary>
         public static void ConfigureHttpClient(HttpClient client)
         {

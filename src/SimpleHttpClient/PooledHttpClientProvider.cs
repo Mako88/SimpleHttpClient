@@ -32,11 +32,7 @@ namespace SimpleHttpClient
             {
                 if (httpClient == null)
                 {
-                    var handler = HttpClientConfigurator.GetMessageHandler();
-
-                    httpClient = new HttpClient(handler);
-
-                    HttpClientConfigurator.ConfigureHttpClient(httpClient);
+                    httpClient = HttpClientConfigurator.GetConfiguredHttpClient();
                 }
 
                 return httpClient;
@@ -50,7 +46,6 @@ namespace SimpleHttpClient
                 return;
             }
 
-            // Only dispose a client we created ourselves; factory-created clients are owned by the factory.
             httpClient?.Dispose();
             disposedValue = true;
         }

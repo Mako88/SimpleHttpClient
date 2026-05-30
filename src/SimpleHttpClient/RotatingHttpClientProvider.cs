@@ -35,80 +35,64 @@ namespace SimpleHttpClient
 
         public HttpClient GetClient()
         {
-            // Without a factory, new up our own client and rotate it periodically.
-            if (httpClientFactory == null)
+            var hasFactory = httpClientFactory != null;
+
+            // With a factory on a non-Framework runtime, the factory pools and rotates handlers,
+            // so just hand back a fresh client per request - no caching or rotation needed here.
+            if (hasFactory && !IsDotNetFramework)
             {
-                lock (clientLock)
-                {
-                    SetupTimerIfNeeded(false);
-
-                    if (httpClient == null)
-                    {
-                        httpClient = CreateConfiguredClient();
-                    }
-
-                    return httpClient;
-                }
+                return CreateClient(useFactory: true);
             }
 
-            // Don't create a new HttpClient per request on .NET Framework; cache one and rotate it.
-            if (RuntimeInformation.FrameworkDescription.Contains("Framework", StringComparison.OrdinalIgnoreCase))
+            // Otherwise (no factory, or on .NET Framework) cache a single client and rotate it
+            // periodically to keep DNS fresh.
+            lock (clientLock)
             {
-                lock (clientLock)
+                SetupTimerIfNeeded(hasFactory);
+
+                if (httpClient == null)
                 {
-                    SetupTimerIfNeeded(true);
-
-                    if (httpClient == null)
-                    {
-                        httpClient = httpClientFactory.CreateClient(Constants.HttpClientNameString);
-                    }
-
-                    return httpClient;
+                    httpClient = CreateClient(hasFactory);
                 }
+
+                return httpClient;
             }
-
-            return httpClientFactory.CreateClient(Constants.HttpClientNameString);
         }
 
-        private static HttpClient CreateConfiguredClient()
-        {
-            var handler = HttpClientConfigurator.GetMessageHandler();
+        private static bool IsDotNetFramework =>
+            RuntimeInformation.FrameworkDescription.Contains("Framework", StringComparison.OrdinalIgnoreCase);
 
-            var client = new HttpClient(handler);
-
-            HttpClientConfigurator.ConfigureHttpClient(client);
-
-            return client;
-        }
+        // Create either a factory-managed client or our own configured client.
+        private HttpClient CreateClient(bool useFactory) =>
+            useFactory
+                ? httpClientFactory.CreateClient(Constants.HttpClientNameString)
+                : HttpClientConfigurator.GetConfiguredHttpClient();
 
         // Callers must hold clientLock.
-        private void SetupTimerIfNeeded(bool shouldUseFactory)
+        private void SetupTimerIfNeeded(bool useFactory)
         {
             if (replacementTimer == null)
             {
                 replacementTimer = new System.Timers.Timer();
-                replacementTimer.Elapsed += (sender, e) => ReplaceClient(shouldUseFactory);
+                replacementTimer.Elapsed += (sender, e) => ReplaceClient(useFactory);
                 replacementTimer.Interval = ReplacementIntervalMs;
                 replacementTimer.AutoReset = true;
                 replacementTimer.Start();
             }
         }
 
-        private void ReplaceClient(bool shouldUseFactory)
+        private void ReplaceClient(bool useFactory)
         {
             HttpClient retiredClient;
 
             lock (clientLock)
             {
                 retiredClient = httpClient;
-
-                httpClient = shouldUseFactory
-                    ? httpClientFactory.CreateClient(Constants.HttpClientNameString)
-                    : CreateConfiguredClient();
+                httpClient = CreateClient(useFactory);
             }
 
             // Only dispose clients we own. Factory-created clients are managed by the factory.
-            if (retiredClient != null && !shouldUseFactory)
+            if (retiredClient != null && !useFactory)
             {
                 _ = DisposeAfterDelayAsync(retiredClient);
             }
