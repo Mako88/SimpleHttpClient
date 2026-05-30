@@ -1,5 +1,7 @@
 using Moq;
-using Newtonsoft.Json.Linq;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using SimpleHttpClient.Logging;
 using SimpleHttpClient.Models;
 using SimpleHttpClient.Serialization;
@@ -113,7 +115,7 @@ namespace SimpleHttpClient.Tests
 
             var response = await client.MakeRequest(request);
 
-            var responseJson = JObject.Parse(response.StringBody);
+            var responseJson = JsonNode.Parse(response.StringBody);
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Equal("value1", responseJson?["args"]?["param1"]?.ToString());
@@ -349,7 +351,7 @@ namespace SimpleHttpClient.Tests
 
             var response = await client.MakeRequest(request);
 
-            var body = JToken.Parse(response.StringBody);
+            var body = JsonNode.Parse(response.StringBody)!;
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Equal("text/json", request.ContentType);
@@ -368,7 +370,7 @@ namespace SimpleHttpClient.Tests
 
             var response = await client.MakeRequest(request);
 
-            var body = JToken.Parse(response.StringBody);
+            var body = JsonNode.Parse(response.StringBody)!;
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Equal("text/json", request.ContentType);
@@ -416,7 +418,7 @@ namespace SimpleHttpClient.Tests
 
             await client.MakeRequest<PostmanEchoResponse>(request);
 
-            var body = JToken.Parse(request.StringBody);
+            var body = JsonNode.Parse(request.StringBody)!;
 
             Assert.Equal("value1", body["param1"]?.ToString());
             Assert.Equal("value2", body["param2"]?.ToString());
@@ -623,14 +625,42 @@ namespace SimpleHttpClient.Tests
 
         public Args? Form { get; set; }
 
+        // postman-echo returns "data" as the posted object for JSON bodies, but as an
+        // empty string for form posts. System.Text.Json (unlike Newtonsoft) won't coerce
+        // a string into a complex type, so the converter maps the non-object case to null
+        // while keeping Data strongly typed (so the JSON-body tests still verify that
+        // properties deserialize onto the typed object).
+        [JsonConverter(typeof(EmptyStringTolerantConverter<Args>))]
         public Args? Data { get; set; }
 
-        public JToken? Headers { get; set; }
+        public JsonNode? Headers { get; set; }
     }
 
     public class Args
     {
         public string? Param1 { get; set; }
         public string? Param2 { get; set; }
+    }
+
+    // Deserializes an object normally, but yields null for any non-object JSON value
+    // (e.g. the empty string postman-echo returns for the "data" field on form posts),
+    // rather than letting System.Text.Json throw and fail the whole response.
+    public class EmptyStringTolerantConverter<T> : JsonConverter<T> where T : class
+    {
+        public override T? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType != JsonTokenType.StartObject)
+            {
+                reader.Skip();
+                return null;
+            }
+
+            // No converter is registered for T in options (this one is applied per-property),
+            // so this deserializes with the default object handling rather than recursing.
+            return JsonSerializer.Deserialize<T>(ref reader, options);
+        }
+
+        public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options) =>
+            JsonSerializer.Serialize(writer, value, options);
     }
 }

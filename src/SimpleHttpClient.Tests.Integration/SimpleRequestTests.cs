@@ -1,6 +1,6 @@
 using Moq;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using SimpleHttpClient.Models;
 using SimpleHttpClient.Serialization;
 using System.Net;
@@ -57,7 +57,7 @@ namespace SimpleHttpClient.Tests
 
             var response = await client.MakeRequest(request);
 
-            var responseJson = JObject.Parse(response.StringBody);
+            var responseJson = JsonNode.Parse(response.StringBody);
 
             Assert.Equal("value1", responseJson?["args"]?["param1"]?.ToString());
             Assert.Equal("value2", responseJson?["args"]?["param2"]?.ToString());
@@ -67,8 +67,8 @@ namespace SimpleHttpClient.Tests
         public async Task SerializerOverride_OverridesClientSerializer()
         {
             var serializer = new Mock<ISimpleHttpSerializer>(MockBehavior.Loose);
-            serializer.Setup(x => x.Serialize(It.IsAny<object>())).Returns((object obj) => JsonConvert.SerializeObject(obj));
-            serializer.Setup(x => x.Deserialize<TestResponse>(It.IsAny<string>())).Returns((string str) => JsonConvert.DeserializeObject<TestResponse>(str)!);
+            serializer.Setup(x => x.Serialize(It.IsAny<object>())).Returns((object obj) => JsonSerializer.Serialize(obj));
+            serializer.Setup(x => x.Deserialize<TestResponse>(It.IsAny<string>())).Returns((string str) => JsonSerializer.Deserialize<TestResponse>(str)!);
 
             var serializer2 = new Mock<IUnusedSerializer>(MockBehavior.Loose);
 
@@ -160,7 +160,7 @@ namespace SimpleHttpClient.Tests
 
             var response = await client.MakeRequest(request);
 
-            var body = JToken.Parse(response.StringBody);
+            var body = JsonNode.Parse(response.StringBody)!;
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Contains("ascii", body["headers"]?["content-type"]?.ToString());

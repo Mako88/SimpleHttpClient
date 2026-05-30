@@ -1,29 +1,11 @@
-﻿using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
-
 namespace SimpleHttpClient.Serialization
 {
     /// <summary>
-    /// The default Json serializer - uses Newtonsoft.Json.
+    /// The default JSON serializer. As of v5.0.0 it is backed by System.Text.Json
+    /// (it used Newtonsoft.Json in earlier versions) and is equivalent to
+    /// <see cref="SimpleHttpSystemTextJsonSerializer"/>.
     /// </summary>
-    public class SimpleHttpDefaultJsonSerializer : ISimpleHttpSerializer
+    public class SimpleHttpDefaultJsonSerializer : SimpleHttpSystemTextJsonSerializer
     {
-        /// <summary>
-        /// Serialize the given object into a string.
-        /// </summary>
-        public string Serialize(object obj) => JsonConvert.SerializeObject(obj, new JsonSerializerSettings
-        {
-            ContractResolver = new CamelCasePropertyNamesContractResolver(),
-            DefaultValueHandling = DefaultValueHandling.Include,
-            TypeNameHandling = TypeNameHandling.None,
-            NullValueHandling = NullValueHandling.Ignore,
-            Formatting = Formatting.Indented,
-            ConstructorHandling = ConstructorHandling.AllowNonPublicDefaultConstructor
-        });
-
-        /// <summary>
-        /// Deserialize the given string into an object of type T.
-        /// </summary>
-        public T Deserialize<T>(string data) => JsonConvert.DeserializeObject<T>(data);
     }
 }

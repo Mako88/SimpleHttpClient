@@ -8,8 +8,15 @@ name: Release
 # <Version> when no tag exists yet), so <Version> never has to be edited by hand. Each
 # successful publish creates the matching v<version> tag and a GitHub Release.
 #
-# Requires a repository secret NUGET_API_KEY (Settings > Secrets and variables > Actions)
-# with push rights for the SimpleHttpClient package.
+# Publishing uses NuGet trusted publishing (OIDC) — no long-lived API key. The job
+# requests a short-lived key at runtime via the NuGet/login action, so it needs
+# `id-token: write` permission and a repository secret NUGET_USER holding the
+# nuget.org username (profile name, NOT an email).
+#
+# Trusted publishing setup (one-time, on nuget.org > your account > Trusted Publishing):
+#   Repository Owner: Mako88   Repository: SimpleHttpClient
+#   Workflow File: release.yml   Environment: (leave empty)
+# Docs: https://learn.microsoft.com/en-us/nuget/nuget-org/trusted-publishing
 #
 # First-time setup: seed a tag matching the last published version so the first bump is
 # correct, e.g.  git tag v4.1.0 && git push origin v4.1.0
@@ -33,6 +40,7 @@ concurrency:
 
 permissions:
   contents: write
+  id-token: write  # request the OIDC token used for NuGet trusted publishing
 
 jobs:
   release:
@@ -118,9 +126,18 @@ jobs:
         if: steps.bump.outputs.proceed == 'true'
         run: dotnet build src/SimpleHttpClient/SimpleHttpClient.csproj -c Release -p:Version=${{ steps.version.outputs.version }}
 
+      # Exchange the GitHub OIDC token for a short-lived nuget.org API key (valid ~1h).
+      # Done right before push so it doesn't expire mid-build.
+      - name: NuGet login (OIDC -> short-lived API key)
+        if: steps.bump.outputs.proceed == 'true'
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
       - name: Push to NuGet
         if: steps.bump.outputs.proceed == 'true'
-        run: dotnet nuget push "src/SimpleHttpClient/bin/Release/*.nupkg" -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json --skip-duplicate
+        run: dotnet nuget push "src/SimpleHttpClient/bin/Release/*.nupkg" --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Tag and create GitHub Release
         if: steps.bump.outputs.proceed == 'true'

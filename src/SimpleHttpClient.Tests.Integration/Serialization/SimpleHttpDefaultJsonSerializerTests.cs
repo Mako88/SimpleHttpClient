@@ -12,6 +12,14 @@ namespace SimpleHttpClient.Tests.Serialization
 }";
 
         [Fact]
+        public void DefaultSerializer_IsBackedBy_SystemTextJson()
+        {
+            // As of v5.0.0 the default JSON serializer is System.Text.Json-based
+            // (it derives from SimpleHttpSystemTextJsonSerializer).
+            Assert.IsAssignableFrom<SimpleHttpSystemTextJsonSerializer>(new SimpleHttpDefaultJsonSerializer());
+        }
+
+        [Fact]
         public void RoundTrip_Succeeds()
         {
             var objectToSerialize = new TestSerializationObject();
@@ -37,7 +45,9 @@ namespace SimpleHttpClient.Tests.Serialization
 
             var serialized = testObject.Serialize(objectToSerialize);
 
-            Assert.Equal(TestSerializationString, serialized);
+            // Normalize line endings so the comparison doesn't depend on the
+            // platform's newline or the checkout's git autocrlf setting.
+            Assert.Equal(TestSerializationString.Replace("\r\n", "\n"), serialized.Replace("\r\n", "\n"));
         }
 
         [Fact]
