@@ -205,6 +205,10 @@ namespace SimpleHttpClient.Tests
             Assert.Equal("value2", response.Body?.Data?.Param2);
         }
 
+#if !NETFRAMEWORK
+        // .NET Framework's HttpClient (backed by HttpWebRequest) throws
+        // ProtocolViolationException for a GET request with a body, so this scenario is
+        // only supported on modern runtimes.
         [Fact]
         public async Task Get_Request_WithBody_Succeeds()
         {
@@ -220,6 +224,7 @@ namespace SimpleHttpClient.Tests
             Assert.Equal("value1", response.Body?.Args?.Param1);
             Assert.Equal("value2", response.Body?.Args?.Param2);
         }
+#endif
 
         [Fact]
         public async Task Request_WithUrlFormEncodedParameters_Overwrites_CustomContentType()

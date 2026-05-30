@@ -38,7 +38,16 @@ namespace SimpleHttpClient.Tests.Serialization
 
             var serialized = testObject.Serialize(objectToSerialize);
 
-            Assert.Equal(TestSerializationString, serialized);
+            var expected = TestSerializationString;
+#if NETFRAMEWORK
+            // .NET Framework's XmlSerializer declares xmlns:xsd before xmlns:xsi (modern
+            // runtimes emit them in the opposite order).
+            expected = expected.Replace(
+                @"xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance"" xmlns:xsd=""http://www.w3.org/2001/XMLSchema""",
+                @"xmlns:xsd=""http://www.w3.org/2001/XMLSchema"" xmlns:xsi=""http://www.w3.org/2001/XMLSchema-instance""");
+#endif
+
+            Assert.Equal(expected, serialized);
         }
 
         [Fact]

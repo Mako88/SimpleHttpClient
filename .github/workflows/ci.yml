@@ -26,7 +26,6 @@ jobs:
   # that .NET Framework consumers actually receive. Requires a Windows runner.
   test-netfx:
     runs-on: windows-latest
-    continue-on-error: true  # net48 coverage is best-effort; doesn't block the build
     steps:
       - uses: actions/checkout@v4
 
