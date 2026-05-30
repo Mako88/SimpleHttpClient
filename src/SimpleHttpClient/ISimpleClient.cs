@@ -3,6 +3,7 @@ using SimpleHttpClient.Models;
 using SimpleHttpClient.Serialization;
 using System.Collections.Generic;
 using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace SimpleHttpClient
@@ -61,16 +62,29 @@ namespace SimpleHttpClient
         /// Make an untyped request.
         /// </summary>
         /// <param name="request">The request that will be sent.</param>
+        /// <param name="cancellationToken">A token to cancel the request.</param>
         /// <returns>A response object without a strongly-typed body property.</returns>
-        Task<ISimpleResponse> MakeRequest(ISimpleRequest request);
+        Task<ISimpleResponse> MakeRequest(ISimpleRequest request, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Make a typed request.
         /// </summary>
         /// <typeparam name="T">The type the response body will be serialized into.</typeparam>
         /// <param name="request">The request that will be sent.</param>
+        /// <param name="cancellationToken">A token to cancel the request.</param>
         /// <returns>A response object with a strongly-typed body property.</returns>
-        Task<ISimpleResponse<T>> MakeRequest<T>(ISimpleRequest request);
+        Task<ISimpleResponse<T>> MakeRequest<T>(ISimpleRequest request, CancellationToken cancellationToken = default);
+
+        /// <summary>
+        /// Make a request and get back the live, unbuffered response stream.
+        /// The body is not read into memory; the connection is held open until the
+        /// returned <see cref="ISimpleStreamResponse"/> is disposed, so callers should
+        /// dispose it (ideally with a <c>using</c> block) once they're done reading.
+        /// </summary>
+        /// <param name="request">The request that will be sent.</param>
+        /// <param name="cancellationToken">A token to cancel sending the request and reading the response stream.</param>
+        /// <returns>A disposable response exposing the raw response stream.</returns>
+        Task<ISimpleStreamResponse> MakeStreamRequest(ISimpleRequest request, CancellationToken cancellationToken = default);
 
         /// <summary>
         /// Get the URL the given request will be sent to by this client.

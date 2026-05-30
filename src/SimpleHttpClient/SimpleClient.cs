@@ -19,7 +19,14 @@ namespace SimpleHttpClient
     /// </summary>
     public class SimpleClient : ISimpleClient, IDisposable
     {
+        private const double HttpClientReplacementIntervalMs = 300000; // 5 minutes
+
+        // How long a retired HttpClient is kept alive before being disposed, so in-flight
+        // requests (and reasonably-lived streams) using it can finish first.
+        private const int HttpClientDisposeDelayMs = 300000; // 5 minutes
+
         private readonly IHttpClientFactory httpClientFactory = null;
+        private readonly object httpClientLock = new object();
 
         private HttpClient httpClient = null;
         private System.Timers.Timer httpClientReplacementTimer = null;
@@ -100,8 +107,8 @@ namespace SimpleHttpClient
         /// </summary>
         /// <param name="request">The request that will be sent.</param>
         /// <returns>A response object without a strongly-typed body property.</returns>
-        public async Task<ISimpleResponse> MakeRequest(ISimpleRequest request) =>
-            await MakeRequestInternal(request, new SimpleResponse(request.Id), AddResponseBody).ConfigureAwait(false);
+        public async Task<ISimpleResponse> MakeRequest(ISimpleRequest request, CancellationToken cancellationToken = default) =>
+            await MakeRequestInternal(request, new SimpleResponse(request.Id), AddResponseBody, cancellationToken).ConfigureAwait(false);
 
         /// <summary>
         /// Make a typed request.
@@ -109,8 +116,51 @@ namespace SimpleHttpClient
         /// <typeparam name="T">The type the response body will be serialized into.</typeparam>
         /// <param name="request">The request that will be sent.</param>
         /// <returns>A response object with a strongly-typed body property.</returns>
-        public async Task<ISimpleResponse<T>> MakeRequest<T>(ISimpleRequest request) =>
-            await MakeRequestInternal(request, new SimpleResponse<T>(request.Id), AddResponseBody).ConfigureAwait(false);
+        public async Task<ISimpleResponse<T>> MakeRequest<T>(ISimpleRequest request, CancellationToken cancellationToken = default) =>
+            await MakeRequestInternal(request, new SimpleResponse<T>(request.Id), AddResponseBody, cancellationToken).ConfigureAwait(false);
+
+        /// <summary>
+        /// Make a request and get back the live, unbuffered response stream.
+        /// The body is not read into memory; the connection is held open until the
+        /// returned ISimpleStreamResponse is disposed, so callers should dispose it
+        /// (ideally with a using block) once they're done reading.
+        /// </summary>
+        /// <param name="request">The request that will be sent.</param>
+        /// <param name="cancellationToken">A token to cancel sending the request and reading the response stream.</param>
+        /// <returns>A disposable response exposing the raw response stream.</returns>
+        public async Task<ISimpleStreamResponse> MakeStreamRequest(ISimpleRequest request, CancellationToken cancellationToken = default)
+        {
+            var httpRequest = CreateHttpRequest(request);
+            AddRequestBody(httpRequest, request);
+            ApplyHeaders(httpRequest, request);
+
+            var url = httpRequest.RequestUri.ToString();
+
+            Logger?.LogRequest(url, request);
+
+            if (LogRequest != null)
+            {
+                LogRequest(url, request);
+            }
+
+            // ResponseHeadersRead so SendAsync returns as soon as the headers are
+            // available instead of buffering the whole body, which is what lets us stream.
+            var httpResponse = await SendHttpRequest(request, httpRequest, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+
+            var body = await httpResponse.Content.ReadAsStreamAsync().ConfigureAwait(false);
+
+            // The HttpResponseMessage is handed to the response so its lifetime (and the
+            // underlying connection) is controlled by the caller disposing the response.
+            var response = new SimpleStreamResponse(httpResponse, body)
+            {
+                StatusCode = httpResponse.StatusCode,
+                IsSuccessful = ResponseIsSuccessful(httpResponse, request.AdditionalSuccessfulStatusCodes),
+            };
+
+            PopulateHeaders(httpResponse, response.Headers);
+
+            return response;
+        }
 
         /// <summary>
         /// Get the URL the given request will be sent to by this client.
@@ -122,10 +172,11 @@ namespace SimpleHttpClient
         /// <summary>
         /// Execute a request.
         /// </summary>
-        private async Task<T> MakeRequestInternal<T>(ISimpleRequest request, T response, Func<HttpResponseMessage, T, ISimpleHttpSerializer, Task> addResponseBody) where T : ISimpleResponse
+        private async Task<T> MakeRequestInternal<T>(ISimpleRequest request, T response, Func<HttpResponseMessage, T, ISimpleHttpSerializer, Task> addResponseBody, CancellationToken cancellationToken) where T : ISimpleResponse
         {
             var httpRequest = CreateHttpRequest(request);
             AddRequestBody(httpRequest, request);
+            ApplyHeaders(httpRequest, request);
 
             var url = httpRequest.RequestUri.ToString();
 
@@ -136,25 +187,7 @@ namespace SimpleHttpClient
                 LogRequest(url, request);
             }
 
-            var timeout = request.TimeoutOverride ?? Timeout;
-
-            HttpResponseMessage httpResponse;
-            using (var cts = new CancellationTokenSource())
-            {
-                if (timeout != -1)
-                {
-                    cts.CancelAfter(TimeSpan.FromSeconds(timeout));
-                }
-
-                try
-                {
-                    httpResponse = await GetHttpClient().SendAsync(httpRequest, cts.Token).ConfigureAwait(false);
-                }
-                catch (OperationCanceledException)
-                {
-                    throw new TimeoutException($"Request timed out after {timeout} seconds");
-                }
-            }
+            var httpResponse = await SendHttpRequest(request, httpRequest, HttpCompletionOption.ResponseContentRead, cancellationToken).ConfigureAwait(false);
 
             PopulateResponse(httpResponse, response, request.AdditionalSuccessfulStatusCodes);
             await addResponseBody(httpResponse, response, request.SerializerOverride ?? Serializer);
@@ -170,6 +203,33 @@ namespace SimpleHttpClient
         }
 
         /// <summary>
+        /// Send an HttpRequestMessage, applying the request/client timeout to the send and
+        /// honoring the caller's cancellation token. A timeout surfaces as a TimeoutException;
+        /// a caller-requested cancellation propagates as an OperationCanceledException.
+        /// </summary>
+        private async Task<HttpResponseMessage> SendHttpRequest(ISimpleRequest request, HttpRequestMessage httpRequest, HttpCompletionOption completionOption, CancellationToken cancellationToken)
+        {
+            var timeout = request.TimeoutOverride ?? Timeout;
+
+            using (var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken))
+            {
+                if (timeout != -1)
+                {
+                    cts.CancelAfter(TimeSpan.FromSeconds(timeout));
+                }
+
+                try
+                {
+                    return await GetHttpClient().SendAsync(httpRequest, completionOption, cts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    throw new TimeoutException($"Request timed out after {timeout} seconds");
+                }
+            }
+        }
+
+        /// <summary>
         /// Create an HttpRequestMessage for use with HttpClient from an IRequest.
         /// </summary>
         private HttpRequestMessage CreateHttpRequest(ISimpleRequest request)
@@ -178,33 +238,59 @@ namespace SimpleHttpClient
 
             var httpRequest = new HttpRequestMessage(request.Method, url);
 
-            // Ensure that we only add default headers that aren't already set on the request
-            var headers = request.Headers.Concat(DefaultHeaders.Where(x => !request.Headers.Keys.Contains(x.Key)))
+            // Resolve a custom Content-Type header before the body is built so the body
+            // content is created with the correct content type. The remaining headers are
+            // applied after the body exists (see ApplyHeaders), which lets content-level
+            // headers be routed to the body content where HttpClient requires them.
+            var headers = MergeHeaders(request);
+
+            // Only update Content-Type if it's still the default value
+            // so we don't overwrite a custom Content-Type on the request
+            if (headers.TryGetValue("Content-Type", out var contentType) && request.ContentType == Constants.DefaultContentType)
+            {
+                request.ContentType = contentType;
+            }
+
+            return httpRequest;
+        }
+
+        /// <summary>
+        /// Merge the request headers with the client's default headers, with the request's
+        /// headers taking precedence on any conflicts.
+        /// </summary>
+        private Dictionary<string, string> MergeHeaders(ISimpleRequest request) =>
+            request.Headers.Concat(DefaultHeaders.Where(x => !request.Headers.Keys.Contains(x.Key)))
                 .ToDictionary(x => x.Key, x => x.Value, StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Apply the merged request/default headers to the HttpRequestMessage. Must be called
+        /// after the request body has been set so content-level headers can be applied to it.
+        /// </summary>
+        private void ApplyHeaders(HttpRequestMessage httpRequest, ISimpleRequest request)
+        {
+            var headers = MergeHeaders(request);
 
             if (!headers.Keys.Contains("User-Agent", StringComparer.OrdinalIgnoreCase))
             {
-                httpRequest.Headers.Add("User-Agent", Constants.DefaultUserAgent);
+                httpRequest.Headers.TryAddWithoutValidation("User-Agent", Constants.DefaultUserAgent);
             }
 
             foreach (var header in headers)
             {
+                // Content-Type is applied to the request body content (see AddRequestBody), not here.
                 if (header.Key.Equals("Content-Type", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Only update Content-Type if it's still the default value
-                    // so we don't overwrite a custom Content-Type on the request
-                    if (request.ContentType == Constants.DefaultContentType)
-                    {
-                        request.ContentType = header.Value;
-                    }
+                    continue;
                 }
-                else
+
+                // TryAddWithoutValidation avoids throwing on header values HttpClient would
+                // otherwise reject. Content-level headers can't go on the request headers, so
+                // fall back to applying them to the body content where they belong.
+                if (!httpRequest.Headers.TryAddWithoutValidation(header.Key, header.Value))
                 {
-                    httpRequest.Headers.Add(header.Key, header.Value);
+                    httpRequest.Content?.Headers.TryAddWithoutValidation(header.Key, header.Value);
                 }
             }
-
-            return httpRequest;
         }
 
         /// <summary>
@@ -265,17 +351,34 @@ namespace SimpleHttpClient
         /// </summary>
         private void PopulateResponse(HttpResponseMessage httpResponse, ISimpleResponse response, IEnumerable<HttpStatusCode> successfulStatusCodes)
         {
+            PopulateHeaders(httpResponse, response.Headers);
+
+            response.StatusCode = httpResponse.StatusCode;
+            response.IsSuccessful = ResponseIsSuccessful(httpResponse, successfulStatusCodes);
+        }
+
+        /// <summary>
+        /// Copy the response and content headers from an httpResponse into the given dictionary.
+        /// </summary>
+        private void PopulateHeaders(HttpResponseMessage httpResponse, Dictionary<string, string> headers)
+        {
             foreach (var header in httpResponse.Headers.Concat(httpResponse.Content.Headers))
             {
                 var value = string.Join(", ", header.Value);
 
-                response.Headers.Add(header.Key, value);
+                // Use the indexer rather than Add so a header appearing in both the response
+                // and content header collections doesn't throw on a duplicate key.
+                headers[header.Key] = value;
             }
-
-            response.StatusCode = httpResponse.StatusCode;
-            response.IsSuccessful = httpResponse.IsSuccessStatusCode ||
-                AdditionalSuccessfulStatusCodes.Concat(successfulStatusCodes).Any(x => x == httpResponse.StatusCode);
         }
+
+        /// <summary>
+        /// Determine whether an httpResponse should be considered successful, taking into
+        /// account both the client-level and request-level additional successful status codes.
+        /// </summary>
+        private bool ResponseIsSuccessful(HttpResponseMessage httpResponse, IEnumerable<HttpStatusCode> successfulStatusCodes) =>
+            httpResponse.IsSuccessStatusCode ||
+            AdditionalSuccessfulStatusCodes.Concat(successfulStatusCodes).Any(x => x == httpResponse.StatusCode);
 
         /// <summary>
         /// Create a URL for the given request.
@@ -332,40 +435,57 @@ namespace SimpleHttpClient
             // we replace the httpClient instance every 5 minutes, per Ref 4
             if (httpClientFactory == null)
             {
-                SetupHttpClientReplacementTimerIfNeeded(false);
-
-                if (httpClient == null)
+                lock (httpClientLock)
                 {
-                    var handler = HttpClientConfigurator.GetMessageHandler();
+                    SetupHttpClientReplacementTimerIfNeeded(false);
 
-                    httpClient = new HttpClient(handler);
+                    if (httpClient == null)
+                    {
+                        httpClient = CreateConfiguredHttpClient();
+                    }
 
-                    HttpClientConfigurator.ConfigureHttpClient(httpClient);
+                    return httpClient;
                 }
-
-                return httpClient;
             }
 
             // Per Ref 2, don't create a new HttpClient for each request on .NET Framework
             if (RuntimeInformation.FrameworkDescription.Contains("Framework", StringComparison.OrdinalIgnoreCase))
             {
-                // Since this is a long-lived client, we need to setup
-                // periodic replacement using the factory, per Ref 4
-                SetupHttpClientReplacementTimerIfNeeded(true);
-
-                if (httpClient == null)
+                lock (httpClientLock)
                 {
-                    httpClient = httpClientFactory.CreateClient(Constants.HttpClientNameString);
-                }
+                    // Since this is a long-lived client, we need to setup
+                    // periodic replacement using the factory, per Ref 4
+                    SetupHttpClientReplacementTimerIfNeeded(true);
 
-                return httpClient;
+                    if (httpClient == null)
+                    {
+                        httpClient = httpClientFactory.CreateClient(Constants.HttpClientNameString);
+                    }
+
+                    return httpClient;
+                }
             }
 
             return httpClientFactory.CreateClient(Constants.HttpClientNameString);
         }
 
         /// <summary>
+        /// Create and configure a new HttpClient with the opinionated default handler.
+        /// </summary>
+        private HttpClient CreateConfiguredHttpClient()
+        {
+            var handler = HttpClientConfigurator.GetMessageHandler();
+
+            var client = new HttpClient(handler);
+
+            HttpClientConfigurator.ConfigureHttpClient(client);
+
+            return client;
+        }
+
+        /// <summary>
         /// Setup the HttpClient replacement timer if it hasn't already been setup.
+        /// Callers must hold httpClientLock.
         /// </summary>
         private void SetupHttpClientReplacementTimerIfNeeded(bool shouldUseFactory)
         {
@@ -373,7 +493,7 @@ namespace SimpleHttpClient
             {
                 httpClientReplacementTimer = new System.Timers.Timer();
                 httpClientReplacementTimer.Elapsed += (sender, e) => ReplaceHttpClient(shouldUseFactory);
-                httpClientReplacementTimer.Interval = 300000; // 5 minutes in milliseconds
+                httpClientReplacementTimer.Interval = HttpClientReplacementIntervalMs;
                 httpClientReplacementTimer.AutoReset = true;
                 httpClientReplacementTimer.Start();
             }
@@ -384,21 +504,32 @@ namespace SimpleHttpClient
         /// </summary>
         private void ReplaceHttpClient(bool shouldUseFactory)
         {
-            if (shouldUseFactory)
+            HttpClient retiredClient;
+
+            lock (httpClientLock)
             {
-                httpClient = httpClientFactory.CreateClient(Constants.HttpClientNameString);
+                retiredClient = httpClient;
+
+                httpClient = shouldUseFactory
+                    ? httpClientFactory.CreateClient(Constants.HttpClientNameString)
+                    : CreateConfiguredHttpClient();
             }
-            else
+
+            // Only dispose clients we own. Factory-created clients are managed by the factory,
+            // which pools and rotates their handlers, so we must not dispose those ourselves.
+            if (retiredClient != null && !shouldUseFactory)
             {
-                var handler = HttpClientConfigurator.GetMessageHandler();
-
-                var newClient = new HttpClient(handler);
-
-                HttpClientConfigurator.ConfigureHttpClient(newClient);
-
-                httpClient = newClient;
+                ScheduleRetiredClientDisposal(retiredClient);
             }
         }
+
+        /// <summary>
+        /// Dispose a retired HttpClient after a grace period so that in-flight requests using
+        /// it can complete. Note that requests (or streams) still running after the grace period
+        /// will be aborted when the retired client is disposed.
+        /// </summary>
+        private void ScheduleRetiredClientDisposal(HttpClient retiredClient) =>
+            Task.Delay(HttpClientDisposeDelayMs).ContinueWith(_ => retiredClient.Dispose());
 
         /// <summary>
         /// Dispose.
