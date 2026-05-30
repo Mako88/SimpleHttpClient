@@ -1,5 +1,5 @@
 ﻿using Moq;
-using Newtonsoft.Json.Linq;
+using System.Text.Json.Nodes;
 using SimpleHttpClient.Models;
 using SimpleHttpClient.Serialization;
 using System.Net;
@@ -52,7 +52,7 @@ namespace SimpleHttpClient.Tests
 
             var response = await client.MakeRequest<PostmanEchoResponse>(request);
 
-            var body = JToken.Parse(response.StringBody);
+            var body = JsonNode.Parse(response.StringBody)!;
 
             Assert.Equal("value1", body["data"]?["param1"]?.ToString());
             Assert.Equal("value2", body["data"]?["param2"]?.ToString());
@@ -70,7 +70,7 @@ namespace SimpleHttpClient.Tests
 
             var response = await client.MakeRequest<PostmanEchoResponse>(request);
 
-            var body = JToken.Parse(Encoding.UTF8.GetString(response.ByteBody));
+            var body = JsonNode.Parse(Encoding.UTF8.GetString(response.ByteBody))!;
 
             Assert.NotNull(response.ByteBody);
             Assert.NotEmpty(response.ByteBody);

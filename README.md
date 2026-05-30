@@ -233,14 +233,10 @@ request.SerializerOverride = new SimpleHttpDefaultJsonSerializer();
 ```
 You can supply your own serializer by implementing `ISimpleHttpSerializer`.
 
-#### System.Text.Json
-The default JSON serializer uses `Newtonsoft.Json`. A `System.Text.Json`-based serializer is also included and can be opted into the same way:
-```csharp
-client.Serializer = new SimpleHttpSystemTextJsonSerializer();
-```
-Its settings mirror the default (camelCase names, null values omitted, indented output, case-insensitive deserialization), so it's a drop-in for most payloads. Note that `System.Text.Json` is stricter than `Newtonsoft.Json` — most notably it can't use a non-public parameterless constructor when deserializing, so such types need a public constructor or a `[JsonConstructor]`.
+#### JSON serialization
+The default JSON serializer (`SimpleHttpDefaultJsonSerializer`) is backed by `System.Text.Json`. It serializes with camelCase names, omits null values, writes indented output, and deserializes case-insensitively. The equivalent `SimpleHttpSystemTextJsonSerializer` is also available for callers who reference it explicitly.
 
-> **Heads up:** `SimpleHttpSystemTextJsonSerializer` is slated to become the default in the next major version (v5), at which point the `Newtonsoft.Json` dependency will be removed.
+> **Upgrading from v4?** As of **v5.0.0** the default serializer moved from `Newtonsoft.Json` to `System.Text.Json` and the `Newtonsoft.Json` dependency was removed. `System.Text.Json` is stricter, so watch for: types deserialized via a non-public parameterless constructor (add a public constructor or a `[JsonConstructor]`), and fields whose JSON shape varies (e.g. sometimes a string, sometimes an object) — these threw nothing under Newtonsoft but will under `System.Text.Json`. If you need the old behavior, implement `ISimpleHttpSerializer` with your own `Newtonsoft.Json` serializer and set it on the client.
 
 ### Logging
 You can log requests and responses by setting the `LogRequest` and `LogResponse` delegates (called immediately before a request is sent and immediately after a response is received), or by providing an `ISimpleHttpLogger`:

@@ -4,17 +4,15 @@ using System.Text.Json.Serialization;
 namespace SimpleHttpClient.Serialization
 {
     /// <summary>
-    /// A JSON serializer backed by System.Text.Json. Opt in by setting it on the
-    /// client (or per-request) instead of the Newtonsoft-based default. Its settings
-    /// mirror the default serializer's behavior (camelCase names, null values omitted,
-    /// indented output, case-insensitive deserialization) so it's a drop-in for most
-    /// payloads.
+    /// A JSON serializer backed by System.Text.Json. This is the default serializer
+    /// (<see cref="SimpleHttpDefaultJsonSerializer"/> derives from it); the type is kept
+    /// for callers who reference it explicitly. It serializes with camelCase names, omits
+    /// null values, writes indented output, and deserializes case-insensitively.
     /// </summary>
     /// <remarks>
     /// System.Text.Json is stricter than Newtonsoft.Json. Notably, it cannot use a
     /// non-public parameterless constructor when deserializing; such types need a public
-    /// constructor or a <see cref="JsonConstructorAttribute"/>. This serializer is slated
-    /// to become the default in a future major version.
+    /// constructor or a <see cref="JsonConstructorAttribute"/>.
     /// </remarks>
     public class SimpleHttpSystemTextJsonSerializer : ISimpleHttpSerializer
     {

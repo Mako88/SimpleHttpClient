@@ -4,8 +4,7 @@ namespace SimpleHttpClient.Tests.Serialization
 {
     public class SimpleHttpSystemTextJsonSerializerTests
     {
-        // Same shape and formatting the Newtonsoft-based default produces, so the
-        // System.Text.Json serializer is verified to be a drop-in for typical payloads.
+        // The camelCase, indented shape the serializer is expected to produce.
         private const string TestSerializationString =
 @"{
   ""property1"": ""property1 value"",

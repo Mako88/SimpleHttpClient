@@ -37,7 +37,9 @@ namespace SimpleHttpClient.Tests.Serialization
 
             var serialized = testObject.Serialize(objectToSerialize);
 
-            Assert.Equal(TestSerializationString, serialized);
+            // Normalize line endings so the comparison doesn't depend on the
+            // platform's newline or the checkout's git autocrlf setting.
+            Assert.Equal(TestSerializationString.Replace("\r\n", "\n"), serialized.Replace("\r\n", "\n"));
         }
 
         [Fact]

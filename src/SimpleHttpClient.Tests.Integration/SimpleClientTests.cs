@@ -1,5 +1,5 @@
 using Moq;
-using Newtonsoft.Json.Linq;
+using System.Text.Json.Nodes;
 using SimpleHttpClient.Logging;
 using SimpleHttpClient.Models;
 using SimpleHttpClient.Serialization;
@@ -113,7 +113,7 @@ namespace SimpleHttpClient.Tests
 
             var response = await client.MakeRequest(request);
 
-            var responseJson = JObject.Parse(response.StringBody);
+            var responseJson = JsonNode.Parse(response.StringBody);
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Equal("value1", responseJson?["args"]?["param1"]?.ToString());
@@ -201,8 +201,8 @@ namespace SimpleHttpClient.Tests
             var response = await client.MakeRequest<PostmanEchoResponse>(request);
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Equal("value1", response.Body?.Data?.Param1);
-            Assert.Equal("value2", response.Body?.Data?.Param2);
+            Assert.Equal("value1", (response.Body?.Data as JsonObject)?["param1"]?.ToString());
+            Assert.Equal("value2", (response.Body?.Data as JsonObject)?["param2"]?.ToString());
         }
 
 #if NETFRAMEWORK
@@ -270,8 +270,8 @@ namespace SimpleHttpClient.Tests
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Equal("value1", response.Body?.Form?.Param1);
             Assert.Equal("value2", response.Body?.Form?.Param2);
-            Assert.NotEqual("willbeoverwritten", response.Body?.Data?.Param1);
-            Assert.NotEqual("alsooverwritten", response.Body?.Data?.Param2);
+            Assert.NotEqual("willbeoverwritten", (response.Body?.Data as JsonObject)?["param1"]?.ToString());
+            Assert.NotEqual("alsooverwritten", (response.Body?.Data as JsonObject)?["param2"]?.ToString());
         }
 
         [Fact]
@@ -291,8 +291,8 @@ namespace SimpleHttpClient.Tests
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Equal("value1", response.Body?.Form?.Param1);
             Assert.Equal("value2", response.Body?.Form?.Param2);
-            Assert.NotEqual("willbeoverwritten", response.Body?.Data?.Param1);
-            Assert.NotEqual("alsooverwritten", response.Body?.Data?.Param2);
+            Assert.NotEqual("willbeoverwritten", (response.Body?.Data as JsonObject)?["param1"]?.ToString());
+            Assert.NotEqual("alsooverwritten", (response.Body?.Data as JsonObject)?["param2"]?.ToString());
         }
 
         [Fact]
@@ -310,8 +310,8 @@ namespace SimpleHttpClient.Tests
             var response = await client.MakeRequest<PostmanEchoResponse>(request);
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Equal("value1", response.Body?.Data?.Param1);
-            Assert.Equal("value2", response.Body?.Data?.Param2);
+            Assert.Equal("value1", (response.Body?.Data as JsonObject)?["param1"]?.ToString());
+            Assert.Equal("value2", (response.Body?.Data as JsonObject)?["param2"]?.ToString());
         }
 
         [Fact]
@@ -349,7 +349,7 @@ namespace SimpleHttpClient.Tests
 
             var response = await client.MakeRequest(request);
 
-            var body = JToken.Parse(response.StringBody);
+            var body = JsonNode.Parse(response.StringBody)!;
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Equal("text/json", request.ContentType);
@@ -368,7 +368,7 @@ namespace SimpleHttpClient.Tests
 
             var response = await client.MakeRequest(request);
 
-            var body = JToken.Parse(response.StringBody);
+            var body = JsonNode.Parse(response.StringBody)!;
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Equal("text/json", request.ContentType);
@@ -416,7 +416,7 @@ namespace SimpleHttpClient.Tests
 
             await client.MakeRequest<PostmanEchoResponse>(request);
 
-            var body = JToken.Parse(request.StringBody);
+            var body = JsonNode.Parse(request.StringBody)!;
 
             Assert.Equal("value1", body["param1"]?.ToString());
             Assert.Equal("value2", body["param2"]?.ToString());
@@ -428,13 +428,13 @@ namespace SimpleHttpClient.Tests
             var request = new SimpleRequest("/post", HttpMethod.Post, new { param1 = "first" });
 
             var first = await client.MakeRequest<PostmanEchoResponse>(request);
-            Assert.Equal("first", first.Body?.Data?.Param1);
+            Assert.Equal("first", (first.Body?.Data as JsonObject)?["param1"]?.ToString());
 
             // Changing Body and re-sending the same request object must send the new body.
             request.Body = new { param1 = "second" };
 
             var second = await client.MakeRequest<PostmanEchoResponse>(request);
-            Assert.Equal("second", second.Body?.Data?.Param1);
+            Assert.Equal("second", (second.Body?.Data as JsonObject)?["param1"]?.ToString());
         }
 
         [Fact]
@@ -623,9 +623,12 @@ namespace SimpleHttpClient.Tests
 
         public Args? Form { get; set; }
 
-        public Args? Data { get; set; }
+        // postman-echo returns "data" as the posted object for JSON bodies, but as an
+        // empty string for form posts. System.Text.Json (unlike Newtonsoft) won't coerce
+        // a string into a complex type, so this is typed as a JsonNode to accept either.
+        public JsonNode? Data { get; set; }
 
-        public JToken? Headers { get; set; }
+        public JsonNode? Headers { get; set; }
     }
 
     public class Args
