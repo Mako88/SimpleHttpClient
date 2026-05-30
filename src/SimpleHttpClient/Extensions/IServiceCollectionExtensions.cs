@@ -30,7 +30,11 @@ namespace SimpleHttpClient.Extensions
                 services.AddScoped(getLogger);
             }
 
-            services.AddScoped<ISimpleClient, SimpleClient>();
+            // Registered as transient so each consumer gets its own client instance. This avoids
+            // a shared, mutable Host being stomped on when multiple consumers share a scope.
+            // For most scenarios, prefer injecting ISimpleClientFactory and calling CreateClient.
+            services.AddTransient<ISimpleClient, SimpleClient>();
+            services.AddSingleton<ISimpleClientFactory, SimpleClientFactory>();
 
             return services;
         }

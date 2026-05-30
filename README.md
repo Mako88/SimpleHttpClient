@@ -42,17 +42,19 @@ await Host.CreateDefaultBuilder(args)
     .RunAsync();
 ```
 
-Then, in the class that will use the SimpleHttpClient:
+Then, inject `ISimpleClientFactory` and create a client with the host you want to call. This is the
+preferred approach: each consumer gets its own client, so there's no shared, mutable `Host` to
+collide over.
 ```csharp
 public class YourClientClass
 {
     private readonly ISimpleClient client;
 
-    // Retrieve an ISimpleClient through dependency injection
-    public YourClientClass(ISimpleClient client)
+    // Retrieve an ISimpleClientFactory through dependency injection
+    public YourClientClass(ISimpleClientFactory clientFactory)
     {
-        // Set the host on the retrieved client
-        client.Host = "https://api.sampleapis.com";
+        // Create a client for the host you'll be calling
+        client = clientFactory.CreateClient("https://api.sampleapis.com");
     }
 
     public async Task<string> MakeRequest()
@@ -65,6 +67,15 @@ public class YourClientClass
 
         return response.StringBody;
     }
+}
+```
+
+You can also inject `ISimpleClient` directly and set its `Host` (it's registered as transient, so
+each consumer gets its own instance):
+```csharp
+public YourClientClass(ISimpleClient client)
+{
+    client.Host = "https://api.sampleapis.com";
 }
 ```
 
