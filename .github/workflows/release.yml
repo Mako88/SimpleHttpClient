@@ -1,20 +1,46 @@
 name: Release
 
-# Publishes to NuGet when a GitHub Release is published. The package version is taken
-# from the release tag (e.g. tag "v4.4.0" or "4.4.0" publishes version 4.4.0), so there's
-# no need to edit <Version> in the csproj by hand.
+# Publishes to NuGet either:
+#  - manually (Actions > Release > Run workflow), choosing the semver part to bump, or
+#  - automatically when a PR is merged to main carrying a release:major|minor|patch label.
 #
-# Requires a repository secret named NUGET_API_KEY (Settings > Secrets and variables >
-# Actions) containing a nuget.org API key with push rights for the SimpleHttpClient package.
+# The version is computed by bumping the latest v* git tag (falling back to the csproj
+# <Version> when no tag exists yet), so <Version> never has to be edited by hand. Each
+# successful publish creates the matching v<version> tag and a GitHub Release.
+#
+# Requires a repository secret NUGET_API_KEY (Settings > Secrets and variables > Actions)
+# with push rights for the SimpleHttpClient package.
+#
+# First-time setup: seed a tag matching the last published version so the first bump is
+# correct, e.g.  git tag v4.1.0 && git push origin v4.1.0
+
 on:
-  release:
-    types: [ published ]
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Semver part to bump'
+        required: true
+        default: patch
+        type: choice
+        options: [patch, minor, major]
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
 
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -23,16 +49,86 @@ jobs:
             8.0.x
             10.0.x
 
-      - name: Derive version from release tag
+      # Decide whether to publish and which part to bump.
+      - name: Determine bump
+        id: bump
+        env:
+          EVENT: ${{ github.event_name }}
+          INPUT_BUMP: ${{ github.event.inputs.bump }}
+          MERGED: ${{ github.event.pull_request.merged }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$EVENT" = "workflow_dispatch" ]; then
+            echo "bump=$INPUT_BUMP" >> "$GITHUB_OUTPUT"
+            echo "proceed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # pull_request closed: only on a real merge carrying a release label
+          if [ "$MERGED" != "true" ]; then
+            echo "Not a merge; skipping."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          bump=""
+          for l in $(echo "$LABELS" | python3 -c "import sys,json; print(' '.join(json.load(sys.stdin)))"); do
+            case "$l" in
+              release:major) bump=major ;;
+              release:minor) bump=minor ;;
+              release:patch) bump=patch ;;
+            esac
+          done
+          if [ -z "$bump" ]; then
+            echo "No release:* label on the merged PR; skipping publish."
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "bump=$bump" >> "$GITHUB_OUTPUT"
+          echo "proceed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Compute version
+        if: steps.bump.outputs.proceed == 'true'
         id: version
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(git tag --list 'v*' --sort=-v:refname | head -n1)"
+          if [ -z "$latest" ]; then
+            base="$(grep -oPm1 '(?<=<Version>)[^<]+' src/SimpleHttpClient/SimpleHttpClient.csproj)"
+          else
+            base="${latest#v}"
+          fi
+          IFS='.' read -r MA MI PA <<< "$base"
+          case "${{ steps.bump.outputs.bump }}" in
+            major) MA=$((MA+1)); MI=0; PA=0 ;;
+            minor) MI=$((MI+1)); PA=0 ;;
+            patch) PA=$((PA+1)) ;;
+          esac
+          newver="$MA.$MI.$PA"
+          echo "version=$newver" >> "$GITHUB_OUTPUT"
+          echo "Releasing $newver (base $base, bump ${{ steps.bump.outputs.bump }})"
 
       - name: Test
-        run: dotnet test src/SimpleHttpClient.Tests.Integration/SimpleHttpClient.Tests.csproj -c Release
+        if: steps.bump.outputs.proceed == 'true'
+        run: dotnet test src/SimpleHttpClient.Tests.Integration/SimpleHttpClient.Tests.csproj -c Release -f net10.0
 
       # GeneratePackageOnBuild is enabled, so a Release build emits the .nupkg.
       - name: Build package
+        if: steps.bump.outputs.proceed == 'true'
         run: dotnet build src/SimpleHttpClient/SimpleHttpClient.csproj -c Release -p:Version=${{ steps.version.outputs.version }}
 
       - name: Push to NuGet
+        if: steps.bump.outputs.proceed == 'true'
         run: dotnet nuget push "src/SimpleHttpClient/bin/Release/*.nupkg" -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json --skip-duplicate
+
+      - name: Tag and create GitHub Release
+        if: steps.bump.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="v${{ steps.version.outputs.version }}"
+          git tag "$tag"
+          git push origin "$tag"
+          gh release create "$tag" --title "$tag" --generate-notes
