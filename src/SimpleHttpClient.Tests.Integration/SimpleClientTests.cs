@@ -1,5 +1,7 @@
 using Moq;
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using SimpleHttpClient.Logging;
 using SimpleHttpClient.Models;
 using SimpleHttpClient.Serialization;
@@ -201,8 +203,8 @@ namespace SimpleHttpClient.Tests
             var response = await client.MakeRequest<PostmanEchoResponse>(request);
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Equal("value1", (response.Body?.Data as JsonObject)?["param1"]?.ToString());
-            Assert.Equal("value2", (response.Body?.Data as JsonObject)?["param2"]?.ToString());
+            Assert.Equal("value1", response.Body?.Data?.Param1);
+            Assert.Equal("value2", response.Body?.Data?.Param2);
         }
 
 #if NETFRAMEWORK
@@ -270,8 +272,8 @@ namespace SimpleHttpClient.Tests
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Equal("value1", response.Body?.Form?.Param1);
             Assert.Equal("value2", response.Body?.Form?.Param2);
-            Assert.NotEqual("willbeoverwritten", (response.Body?.Data as JsonObject)?["param1"]?.ToString());
-            Assert.NotEqual("alsooverwritten", (response.Body?.Data as JsonObject)?["param2"]?.ToString());
+            Assert.NotEqual("willbeoverwritten", response.Body?.Data?.Param1);
+            Assert.NotEqual("alsooverwritten", response.Body?.Data?.Param2);
         }
 
         [Fact]
@@ -291,8 +293,8 @@ namespace SimpleHttpClient.Tests
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             Assert.Equal("value1", response.Body?.Form?.Param1);
             Assert.Equal("value2", response.Body?.Form?.Param2);
-            Assert.NotEqual("willbeoverwritten", (response.Body?.Data as JsonObject)?["param1"]?.ToString());
-            Assert.NotEqual("alsooverwritten", (response.Body?.Data as JsonObject)?["param2"]?.ToString());
+            Assert.NotEqual("willbeoverwritten", response.Body?.Data?.Param1);
+            Assert.NotEqual("alsooverwritten", response.Body?.Data?.Param2);
         }
 
         [Fact]
@@ -310,8 +312,8 @@ namespace SimpleHttpClient.Tests
             var response = await client.MakeRequest<PostmanEchoResponse>(request);
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Equal("value1", (response.Body?.Data as JsonObject)?["param1"]?.ToString());
-            Assert.Equal("value2", (response.Body?.Data as JsonObject)?["param2"]?.ToString());
+            Assert.Equal("value1", response.Body?.Data?.Param1);
+            Assert.Equal("value2", response.Body?.Data?.Param2);
         }
 
         [Fact]
@@ -428,13 +430,13 @@ namespace SimpleHttpClient.Tests
             var request = new SimpleRequest("/post", HttpMethod.Post, new { param1 = "first" });
 
             var first = await client.MakeRequest<PostmanEchoResponse>(request);
-            Assert.Equal("first", (first.Body?.Data as JsonObject)?["param1"]?.ToString());
+            Assert.Equal("first", first.Body?.Data?.Param1);
 
             // Changing Body and re-sending the same request object must send the new body.
             request.Body = new { param1 = "second" };
 
             var second = await client.MakeRequest<PostmanEchoResponse>(request);
-            Assert.Equal("second", (second.Body?.Data as JsonObject)?["param1"]?.ToString());
+            Assert.Equal("second", second.Body?.Data?.Param1);
         }
 
         [Fact]
@@ -625,8 +627,11 @@ namespace SimpleHttpClient.Tests
 
         // postman-echo returns "data" as the posted object for JSON bodies, but as an
         // empty string for form posts. System.Text.Json (unlike Newtonsoft) won't coerce
-        // a string into a complex type, so this is typed as a JsonNode to accept either.
-        public JsonNode? Data { get; set; }
+        // a string into a complex type, so the converter maps the non-object case to null
+        // while keeping Data strongly typed (so the JSON-body tests still verify that
+        // properties deserialize onto the typed object).
+        [JsonConverter(typeof(EmptyStringTolerantConverter<Args>))]
+        public Args? Data { get; set; }
 
         public JsonNode? Headers { get; set; }
     }
@@ -635,5 +640,27 @@ namespace SimpleHttpClient.Tests
     {
         public string? Param1 { get; set; }
         public string? Param2 { get; set; }
+    }
+
+    // Deserializes an object normally, but yields null for any non-object JSON value
+    // (e.g. the empty string postman-echo returns for the "data" field on form posts),
+    // rather than letting System.Text.Json throw and fail the whole response.
+    public class EmptyStringTolerantConverter<T> : JsonConverter<T> where T : class
+    {
+        public override T? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType != JsonTokenType.StartObject)
+            {
+                reader.Skip();
+                return null;
+            }
+
+            // No converter is registered for T in options (this one is applied per-property),
+            // so this deserializes with the default object handling rather than recursing.
+            return JsonSerializer.Deserialize<T>(ref reader, options);
+        }
+
+        public override void Write(Utf8JsonWriter writer, T value, JsonSerializerOptions options) =>
+            JsonSerializer.Serialize(writer, value, options);
     }
 }
