@@ -19,17 +19,20 @@ namespace SimpleHttpClient
     /// </summary>
     public class SimpleClient : ISimpleClient, IDisposable
     {
+#if NETSTANDARD2_0
         private const double HttpClientReplacementIntervalMs = 300000; // 5 minutes
 
         // How long a retired HttpClient is kept alive before being disposed, so in-flight
         // requests (and reasonably-lived streams) using it can finish first.
         private const int HttpClientDisposeDelayMs = 300000; // 5 minutes
 
+        private System.Timers.Timer httpClientReplacementTimer = null;
+#endif
+
         private readonly IHttpClientFactory httpClientFactory = null;
         private readonly object httpClientLock = new object();
 
         private HttpClient httpClient = null;
-        private System.Timers.Timer httpClientReplacementTimer = null;
         private bool disposedValue;
 
         /// <summary>
@@ -106,6 +109,7 @@ namespace SimpleHttpClient
         /// Make an untyped request.
         /// </summary>
         /// <param name="request">The request that will be sent.</param>
+        /// <param name="cancellationToken">A token to cancel the request.</param>
         /// <returns>A response object without a strongly-typed body property.</returns>
         public async Task<ISimpleResponse> MakeRequest(ISimpleRequest request, CancellationToken cancellationToken = default) =>
             await MakeRequestInternal(request, new SimpleResponse(request.Id), AddResponseBody, cancellationToken).ConfigureAwait(false);
@@ -115,6 +119,7 @@ namespace SimpleHttpClient
         /// </summary>
         /// <typeparam name="T">The type the response body will be serialized into.</typeparam>
         /// <param name="request">The request that will be sent.</param>
+        /// <param name="cancellationToken">A token to cancel the request.</param>
         /// <returns>A response object with a strongly-typed body property.</returns>
         public async Task<ISimpleResponse<T>> MakeRequest<T>(ISimpleRequest request, CancellationToken cancellationToken = default) =>
             await MakeRequestInternal(request, new SimpleResponse<T>(request.Id), AddResponseBody, cancellationToken).ConfigureAwait(false);
@@ -437,7 +442,13 @@ namespace SimpleHttpClient
             {
                 lock (httpClientLock)
                 {
+#if NETSTANDARD2_0
+                    // netstandard2.0 can't use SocketsHttpHandler.PooledConnectionLifetime, so we
+                    // replace the instance every 5 minutes per Ref 4 to keep DNS fresh. On modern
+                    // runtimes the handler from HttpClientConfigurator handles this, so the client
+                    // is created once and reused.
                     SetupHttpClientReplacementTimerIfNeeded(false);
+#endif
 
                     if (httpClient == null)
                     {
@@ -448,6 +459,7 @@ namespace SimpleHttpClient
                 }
             }
 
+#if NETSTANDARD2_0
             // Per Ref 2, don't create a new HttpClient for each request on .NET Framework
             if (RuntimeInformation.FrameworkDescription.Contains("Framework", StringComparison.OrdinalIgnoreCase))
             {
@@ -465,6 +477,7 @@ namespace SimpleHttpClient
                     return httpClient;
                 }
             }
+#endif
 
             return httpClientFactory.CreateClient(Constants.HttpClientNameString);
         }
@@ -483,6 +496,7 @@ namespace SimpleHttpClient
             return client;
         }
 
+#if NETSTANDARD2_0
         /// <summary>
         /// Setup the HttpClient replacement timer if it hasn't already been setup.
         /// Callers must hold httpClientLock.
@@ -519,7 +533,7 @@ namespace SimpleHttpClient
             // which pools and rotates their handlers, so we must not dispose those ourselves.
             if (retiredClient != null && !shouldUseFactory)
             {
-                ScheduleRetiredClientDisposal(retiredClient);
+                _ = DisposeRetiredClientAfterDelayAsync(retiredClient);
             }
         }
 
@@ -528,8 +542,13 @@ namespace SimpleHttpClient
         /// it can complete. Note that requests (or streams) still running after the grace period
         /// will be aborted when the retired client is disposed.
         /// </summary>
-        private void ScheduleRetiredClientDisposal(HttpClient retiredClient) =>
-            Task.Delay(HttpClientDisposeDelayMs).ContinueWith(_ => retiredClient.Dispose());
+        private async Task DisposeRetiredClientAfterDelayAsync(HttpClient retiredClient)
+        {
+            await Task.Delay(HttpClientDisposeDelayMs).ConfigureAwait(false);
+
+            retiredClient.Dispose();
+        }
+#endif
 
         /// <summary>
         /// Dispose.
@@ -540,8 +559,10 @@ namespace SimpleHttpClient
             {
                 if (disposing)
                 {
+#if NETSTANDARD2_0
                     httpClientReplacementTimer?.Stop();
                     httpClientReplacementTimer?.Dispose();
+#endif
                     httpClient?.Dispose();
                 }
 

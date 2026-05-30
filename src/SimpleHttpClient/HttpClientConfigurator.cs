@@ -12,8 +12,9 @@ namespace SimpleHttpClient
         /// <summary>
         /// Create a message handler with opinionated default settings.
         /// </summary>
-        public static HttpClientHandler GetMessageHandler()
+        public static HttpMessageHandler GetMessageHandler()
         {
+#if NETSTANDARD2_0
             var handler = new HttpClientHandler();
 
             // The checks/error handling below are thanks to Flurl's sourcecode
@@ -38,6 +39,18 @@ namespace SimpleHttpClient
             }
 
             return handler;
+#else
+            // On modern runtimes SocketsHttpHandler rotates pooled connections on its own via
+            // PooledConnectionLifetime, which keeps DNS fresh without replacing the HttpClient
+            // (so none of the timer/replacement machinery the netstandard2.0 build needs).
+            return new SocketsHttpHandler
+            {
+                PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+                UseCookies = false,
+                AllowAutoRedirect = true,
+                AutomaticDecompression = DecompressionMethods.All,
+            };
+#endif
         }
 
         /// <summary>

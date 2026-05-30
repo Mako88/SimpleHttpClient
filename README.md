@@ -24,6 +24,7 @@ SimpleHttpClient is available on [NuGet](https://www.nuget.org/packages/SimpleHt
 ```
 nuget install SimpleHttpClient
 ```
+The package targets `netstandard2.0` (for .NET Framework and older runtimes) and `net8.0`. On modern runtimes it uses `SocketsHttpHandler` with a pooled connection lifetime to keep DNS fresh; on `netstandard2.0` it periodically rotates the underlying `HttpClient` to achieve the same.
 
 ## Basic Usage
 
