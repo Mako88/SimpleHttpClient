@@ -205,6 +205,22 @@ namespace SimpleHttpClient.Tests
             Assert.Equal("value2", response.Body?.Data?.Param2);
         }
 
+#if NETFRAMEWORK
+        [Fact]
+        public async Task Get_Request_WithBody_ThrowsOnNetFramework()
+        {
+            // .NET Framework's HttpClient (backed by HttpWebRequest) rejects a GET with a body;
+            // SimpleClient surfaces this as a NotSupportedException with an actionable message.
+            var request = new SimpleRequest("/get", HttpMethod.Get, new
+            {
+                param1 = "value1",
+                param2 = "value2",
+            });
+
+            await Assert.ThrowsAsync<NotSupportedException>(
+                async () => await client.MakeRequest<PostmanEchoResponse>(request));
+        }
+#else
         [Fact]
         public async Task Get_Request_WithBody_Succeeds()
         {
@@ -220,6 +236,7 @@ namespace SimpleHttpClient.Tests
             Assert.Equal("value1", response.Body?.Args?.Param1);
             Assert.Equal("value2", response.Body?.Args?.Param2);
         }
+#endif
 
         [Fact]
         public async Task Request_WithUrlFormEncodedParameters_Overwrites_CustomContentType()
@@ -279,15 +296,16 @@ namespace SimpleHttpClient.Tests
         }
 
         [Fact]
-        public async Task StringBody_OverwritesBody()
+        public async Task ObjectBody_TakesPrecedenceOver_StringBody()
         {
             var request = new SimpleRequest("/post", HttpMethod.Post, new
             {
-                param1 = "willbeoverwritten",
-                param2 = "alsooverwritten",
+                param1 = "value1",
+                param2 = "value2",
             });
 
-            request.StringBody = "{ \"param1\": \"value1\", \"param2\": \"value2\"}";
+            // A directly-set StringBody does not override an object Body - Body is the source of truth.
+            request.StringBody = "{ \"param1\": \"ignored\", \"param2\": \"ignored\"}";
 
             var response = await client.MakeRequest<PostmanEchoResponse>(request);
 
@@ -405,6 +423,21 @@ namespace SimpleHttpClient.Tests
         }
 
         [Fact]
+        public async Task ResendingRequest_WithChangedBody_SendsTheNewBody()
+        {
+            var request = new SimpleRequest("/post", HttpMethod.Post, new { param1 = "first" });
+
+            var first = await client.MakeRequest<PostmanEchoResponse>(request);
+            Assert.Equal("first", first.Body?.Data?.Param1);
+
+            // Changing Body and re-sending the same request object must send the new body.
+            request.Body = new { param1 = "second" };
+
+            var second = await client.MakeRequest<PostmanEchoResponse>(request);
+            Assert.Equal("second", second.Body?.Data?.Param1);
+        }
+
+        [Fact]
         public async Task LogMethods_AreCalled()
         {
             var logger = new Mock<ISimpleHttpLogger>(MockBehavior.Loose);
@@ -433,10 +466,17 @@ namespace SimpleHttpClient.Tests
         [Fact]
         public async Task Timeout_WaitsTheCorrectAmountOfTime()
         {
-            var client = new SimpleClient("http://localhost/some/nonexistant/path");
+            // Use a server that delays well past the timeout so the timeout reliably fires,
+            // rather than relying on a connection to a dead host hanging (which fails fast
+            // with a connection-refused on some platforms instead of timing out).
+            var server = WireMockServer.Start();
+            server.Given(Request.Create().WithPath("/slow").UsingGet())
+                .RespondWith(Response.Create().WithStatusCode(HttpStatusCode.OK).WithDelay(TimeSpan.FromSeconds(30)));
+
+            var client = new SimpleClient(server.Url);
             client.Timeout = 2;
 
-            var request = new SimpleRequest("/get");
+            var request = new SimpleRequest("/slow");
 
             Exception? exception = null;
 
@@ -468,6 +508,8 @@ namespace SimpleHttpClient.Tests
             await Task.WhenAll(new[] { task1, task2 });
 
             Assert.IsType<TimeoutException>(exception);
+
+            server.Stop();
         }
 
         [Fact]
@@ -569,7 +611,7 @@ namespace SimpleHttpClient.Tests
             "get" => HttpMethod.Get,
             "post" => HttpMethod.Post,
             "put" => HttpMethod.Put,
-            "patch" => HttpMethod.Patch,
+            "patch" => new HttpMethod("PATCH"),
             "delete" => HttpMethod.Delete,
             _ => HttpMethod.Get,
         };

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Net;
 using System.Net.Http;
 
@@ -10,10 +10,24 @@ namespace SimpleHttpClient
     internal static class HttpClientConfigurator
     {
         /// <summary>
-        /// Create a message handler with opinionated default settings.
+        /// Create a new HttpClient with the opinionated default handler and settings applied.
         /// </summary>
-        public static HttpClientHandler GetMessageHandler()
+        public static HttpClient GetConfiguredHttpClient()
         {
+            var client = new HttpClient(GetMessageHandler());
+
+            ConfigureHttpClient(client);
+
+            return client;
+        }
+
+        /// <summary>
+        /// Create a message handler with opinionated default settings. Used directly when
+        /// registering the named HttpClient with an IHttpClientFactory.
+        /// </summary>
+        public static HttpMessageHandler GetMessageHandler()
+        {
+#if NETSTANDARD2_0
             var handler = new HttpClientHandler();
 
             // The checks/error handling below are thanks to Flurl's sourcecode
@@ -38,10 +52,23 @@ namespace SimpleHttpClient
             }
 
             return handler;
+#else
+            // On modern runtimes SocketsHttpHandler rotates pooled connections on its own via
+            // PooledConnectionLifetime, which keeps DNS fresh without replacing the HttpClient
+            // (so none of the timer/replacement machinery the netstandard2.0 build needs).
+            return new SocketsHttpHandler
+            {
+                PooledConnectionLifetime = TimeSpan.FromMinutes(5),
+                UseCookies = false,
+                AllowAutoRedirect = true,
+                AutomaticDecompression = DecompressionMethods.All,
+            };
+#endif
         }
 
         /// <summary>
-        /// Configure the given HttpClient with opinionated default settings.
+        /// Configure the given HttpClient with opinionated default settings. Used directly when
+        /// registering the named HttpClient with an IHttpClientFactory.
         /// </summary>
         public static void ConfigureHttpClient(HttpClient client)
         {

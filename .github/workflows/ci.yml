@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  # Exercises the library's net8.0 asset (modern SocketsHttpHandler path).
+  test-modern:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Test (net10.0)
+        run: dotnet test src/SimpleHttpClient.Tests.Integration/SimpleHttpClient.Tests.csproj -c Release -f net10.0
+
+  # Exercises the library's netstandard2.0 asset (rotating path + .NET Framework branch)
+  # that .NET Framework consumers actually receive. Requires a Windows runner.
+  test-netfx:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Test (net48)
+        run: dotnet test src/SimpleHttpClient.Tests.Integration/SimpleHttpClient.Tests.csproj -c Release -f net48
