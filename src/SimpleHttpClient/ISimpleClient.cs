@@ -82,7 +82,12 @@ namespace SimpleHttpClient
         /// dispose it (ideally with a <c>using</c> block) once they're done reading.
         /// </summary>
         /// <param name="request">The request that will be sent.</param>
-        /// <param name="cancellationToken">A token to cancel sending the request and reading the response stream.</param>
+        /// <param name="cancellationToken">
+        /// A token to cancel sending the request, waiting for the response headers, and reading
+        /// from the returned stream. Async reads honor it even mid-read; synchronous reads observe
+        /// it between reads. To abort a synchronous read already blocked on the socket, dispose the
+        /// response.
+        /// </param>
         /// <returns>A disposable response exposing the raw response stream.</returns>
         Task<ISimpleStreamResponse> MakeStreamRequest(ISimpleRequest request, CancellationToken cancellationToken = default);
 

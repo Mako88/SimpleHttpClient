@@ -199,7 +199,7 @@ while ((line = await reader.ReadLineAsync()) != null)
 
 A few things to keep in mind:
 - **Dispose the response.** The underlying `HttpResponseMessage` and connection are held open until you dispose the returned `ISimpleStreamResponse`. A `using` block is the simplest way to guarantee this.
-- **`MakeStreamRequest` accepts a `CancellationToken`.** Pass one to cancel both sending the request and reading the stream (e.g. when a user aborts mid-stream). A caller-requested cancellation surfaces as an `OperationCanceledException`; a timeout still surfaces as a `TimeoutException`.
+- **`MakeStreamRequest` accepts a `CancellationToken`.** Pass one to cancel sending the request, waiting for the headers, and reading the stream (e.g. when a user aborts mid-stream). The token is observed by reads too, even through a `StreamReader` that gives you no place to pass it — so the `await reader.ReadLineAsync()` loop above stops promptly when the token fires. Async reads honor it even mid-read; synchronous reads observe it between reads, so to abort a synchronous read already blocked on the socket, dispose the response. A caller-requested cancellation surfaces as an `OperationCanceledException`; a timeout still surfaces as a `TimeoutException`.
 - **The body is yours to frame.** `SimpleStreamResponse.Body` is a plain `Stream`, leaving any protocol-specific framing (such as SSE `event:`/`data:` parsing) to you.
 
 ## Configuration
@@ -232,6 +232,15 @@ var request = new SimpleRequest("/get");
 request.SerializerOverride = new SimpleHttpDefaultJsonSerializer();
 ```
 You can supply your own serializer by implementing `ISimpleHttpSerializer`.
+
+#### System.Text.Json
+The default JSON serializer uses `Newtonsoft.Json`. A `System.Text.Json`-based serializer is also included and can be opted into the same way:
+```csharp
+client.Serializer = new SimpleHttpSystemTextJsonSerializer();
+```
+Its settings mirror the default (camelCase names, null values omitted, indented output, case-insensitive deserialization), so it's a drop-in for most payloads. Note that `System.Text.Json` is stricter than `Newtonsoft.Json` — most notably it can't use a non-public parameterless constructor when deserializing, so such types need a public constructor or a `[JsonConstructor]`.
+
+> **Heads up:** `SimpleHttpSystemTextJsonSerializer` is slated to become the default in the next major version (v5), at which point the `Newtonsoft.Json` dependency will be removed.
 
 ### Logging
 You can log requests and responses by setting the `LogRequest` and `LogResponse` delegates (called immediately before a request is sent and immediately after a response is received), or by providing an `ISimpleHttpLogger`:

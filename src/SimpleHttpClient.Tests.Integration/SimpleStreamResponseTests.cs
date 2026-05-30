@@ -96,6 +96,57 @@ namespace SimpleHttpClient.Tests
         }
 
         [Fact]
+        public async Task StreamRequest_CancellingAfterHeaders_CancelsDirectReads()
+        {
+            var server = WireMockServer.Start();
+
+            server.Given(Request.Create().WithPath("/stream").UsingGet())
+                .RespondWith(Response.Create().WithStatusCode(HttpStatusCode.OK).WithBody("line1\nline2\nline3"));
+
+            var client = new SimpleClient(server.Url);
+            var request = new SimpleRequest("/stream");
+
+            using var cts = new CancellationTokenSource();
+            using var response = await client.MakeStreamRequest(request, cts.Token);
+
+            // The token is baked into the returned stream, so reads observe it even
+            // when the caller has no per-read token to pass.
+            cts.Cancel();
+
+            var buffer = new byte[16];
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                async () => await response.Body.ReadAsync(buffer, 0, buffer.Length));
+
+            server.Stop();
+        }
+
+        [Fact]
+        public async Task StreamRequest_CancellingAfterHeaders_CancelsStreamReaderReads()
+        {
+            var server = WireMockServer.Start();
+
+            server.Given(Request.Create().WithPath("/stream").UsingGet())
+                .RespondWith(Response.Create().WithStatusCode(HttpStatusCode.OK).WithBody("line1\nline2\nline3"));
+
+            var client = new SimpleClient(server.Url);
+            var request = new SimpleRequest("/stream");
+
+            using var cts = new CancellationTokenSource();
+            using var response = await client.MakeStreamRequest(request, cts.Token);
+
+            using var reader = new StreamReader(response.Body);
+
+            // StreamReader gives no place to pass a token, but its internal reads
+            // flow through the wrapper and pick up the baked-in token.
+            cts.Cancel();
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                async () => await reader.ReadLineAsync());
+
+            server.Stop();
+        }
+
+        [Fact]
         public async Task StreamRequest_Dispose_IsCleanAndIdempotent()
         {
             var server = WireMockServer.Start();

@@ -119,7 +119,12 @@ namespace SimpleHttpClient
         /// (ideally with a using block) once they're done reading.
         /// </summary>
         /// <param name="request">The request that will be sent.</param>
-        /// <param name="cancellationToken">A token to cancel sending the request and reading the response stream.</param>
+        /// <param name="cancellationToken">
+        /// A token to cancel sending the request, waiting for the response headers, and reading
+        /// from the returned stream. Async reads honor it even mid-read; synchronous reads observe
+        /// it between reads. To abort a synchronous read already blocked on the socket, dispose the
+        /// response.
+        /// </param>
         /// <returns>A disposable response exposing the raw response stream.</returns>
         public async Task<ISimpleStreamResponse> MakeStreamRequest(ISimpleRequest request, CancellationToken cancellationToken = default)
         {
@@ -140,7 +145,10 @@ namespace SimpleHttpClient
             // available instead of buffering the whole body, which is what lets us stream.
             var httpResponse = await SendHttpRequest(request, httpRequest, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
 
-            var body = await httpResponse.Content.ReadAsStreamAsync().ConfigureAwait(false);
+            // Wrap the raw stream so the caller's token cancels reads, not just the send.
+            var body = new CancellationAwareStream(
+                await httpResponse.Content.ReadAsStreamAsync().ConfigureAwait(false),
+                cancellationToken);
 
             // The HttpResponseMessage is handed to the response so its lifetime (and the
             // underlying connection) is controlled by the caller disposing the response.
