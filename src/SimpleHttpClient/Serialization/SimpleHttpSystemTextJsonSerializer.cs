@@ -12,11 +12,11 @@ namespace SimpleHttpClient.Serialization
     /// and tolerates trailing commas and comments while reading.
     /// </summary>
     /// <remarks>
-    /// System.Text.Json is stricter than Newtonsoft.Json in ways these options don't soften.
-    /// Notably, it cannot use a non-public parameterless constructor when deserializing (such
-    /// types need a public constructor or a <see cref="JsonConstructorAttribute"/>), and it
-    /// won't coerce a JSON value of the wrong shape (e.g. a string where an object is expected).
-    /// For fields whose shape varies, attach a custom <see cref="JsonConverter"/> to the property.
+    /// Deserialization is strict in two ways these options don't soften. It cannot use a
+    /// non-public parameterless constructor (such types need a public constructor or a
+    /// <see cref="JsonConstructorAttribute"/>), and it won't coerce a JSON value of the wrong
+    /// shape (e.g. a string where an object is expected). For fields whose shape varies, attach
+    /// a custom <see cref="JsonConverter"/> to the property.
     /// </remarks>
     public class SimpleHttpSystemTextJsonSerializer : ISimpleHttpSerializer
     {
@@ -29,8 +29,7 @@ namespace SimpleHttpClient.Serialization
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
             PropertyNameCaseInsensitive = true,
             WriteIndented = true,
-            // Read leniencies that bring the defaults closer to Newtonsoft's, easing the
-            // v5 migration without masking genuine type mismatches.
+            // Read leniencies for real-world API payloads, without masking genuine type mismatches.
             NumberHandling = JsonNumberHandling.AllowReadingFromString,
             AllowTrailingCommas = true,
             ReadCommentHandling = JsonCommentHandling.Skip,
