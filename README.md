@@ -200,7 +200,46 @@ while ((line = await reader.ReadLineAsync()) != null)
 A few things to keep in mind:
 - **Dispose the response.** The underlying `HttpResponseMessage` and connection are held open until you dispose the returned `ISimpleStreamResponse`. A `using` block is the simplest way to guarantee this.
 - **`MakeStreamRequest` accepts a `CancellationToken`.** Pass one to cancel sending the request, waiting for the headers, and reading the stream (e.g. when a user aborts mid-stream). The token is observed by reads too, even through a `StreamReader` that gives you no place to pass it — so the `await reader.ReadLineAsync()` loop above stops promptly when the token fires. Async reads honor it even mid-read; synchronous reads observe it between reads, so to abort a synchronous read already blocked on the socket, dispose the response. A caller-requested cancellation surfaces as an `OperationCanceledException`; a timeout still surfaces as a `TimeoutException`.
-- **The body is yours to frame.** `SimpleStreamResponse.Body` is a plain `Stream`, leaving any protocol-specific framing (such as SSE `event:`/`data:` parsing) to you.
+- **The body is yours to frame.** `SimpleStreamResponse.Body` is a plain `Stream`. For common cases there are helpers (below) that read it as lines or Server-Sent Events; otherwise you can frame it however you like.
+
+### Reading lines and Server-Sent Events
+`ISimpleStreamResponse` has two methods that cover the most common streaming formats. Both are `IAsyncEnumerable<T>`, so you consume them with `await foreach`, and both honor a `CancellationToken`:
+
+```csharp
+// Line-delimited streams (NDJSON, plain text, etc.)
+await foreach (var line in response.ReadLinesAsync(cancellationToken))
+{
+    Console.WriteLine(line);
+}
+```
+
+```csharp
+// Server-Sent Events (text/event-stream)
+await foreach (var sse in response.ReadServerSentEventsAsync(cancellationToken))
+{
+    // sse.Data, sse.EventType, sse.Id, sse.Retry
+    Console.WriteLine(sse.Data);
+}
+```
+
+`ReadServerSentEventsAsync` parses the SSE wire format per the [WHATWG specification](https://html.spec.whatwg.org/multipage/server-sent-events.html): events are separated by blank lines, multiple `data:` lines are joined with newlines, and comment/keep-alive lines (starting with `:`) are skipped. It deliberately does **not** handle application-specific conventions — most notably it does not treat any sentinel value specially and does not deserialize the payload — so those stay in your hands:
+
+```csharp
+using var response = await client.MakeStreamRequest(request, cancellationToken);
+
+await foreach (var sse in response.ReadServerSentEventsAsync(cancellationToken))
+{
+    if (sse.Data == "end") // a sentinel some APIs send to mark the end - your convention, not the library's
+    {
+        break;
+    }
+
+    var chunk = client.Serializer.Deserialize<MyChunk>(sse.Data);
+    // ...handle chunk
+}
+```
+
+This keeps SimpleHttpClient general-purpose: the SSE framing is a web standard (the same format `EventSource` consumes in browsers), while which sentinel terminates the stream and how each `data` payload is shaped are specific to the API you're calling.
 
 ## Configuration
 
@@ -236,11 +275,11 @@ You can supply your own serializer by implementing `ISimpleHttpSerializer`.
 #### JSON serialization
 The default JSON serializer (`SimpleHttpDefaultJsonSerializer`) is backed by `System.Text.Json`. It serializes with camelCase names, omits null values, writes indented output, and deserializes case-insensitively. For smoother interop it also reads numbers from JSON strings (e.g. `"123"`) and tolerates trailing commas and comments while reading. The equivalent `SimpleHttpSystemTextJsonSerializer` is also available for callers who reference it explicitly.
 
-> **Upgrading from v4?** As of **v5.0.0** the default serializer moved from `Newtonsoft.Json` to `System.Text.Json` and the `Newtonsoft.Json` dependency was removed. The defaults above cover the most common differences, but `System.Text.Json` is stricter in two ways it won't soften:
+> **Note:** the defaults above cover the most common cases, but deserialization is strict in two ways they don't soften:
 > - **Non-public parameterless constructors** aren't used — add a public constructor or a `[JsonConstructor]`.
-> - **Wrong-shape values aren't coerced** — a field that's sometimes a string and sometimes an object (and similar) threw nothing under Newtonsoft but throws here. For such fields, attach a custom `JsonConverter` to the property.
+> - **Wrong-shape values aren't coerced** — a field that's sometimes a string and sometimes an object (and similar) will throw. For such fields, attach a custom `JsonConverter` to the property.
 >
-> If you'd rather keep the old behavior wholesale, implement `ISimpleHttpSerializer` with your own `Newtonsoft.Json` serializer and set it on the client.
+> If you need different behavior wholesale, implement `ISimpleHttpSerializer` with your own serializer and set it on the client.
 
 ### Logging
 You can log requests and responses by setting the `LogRequest` and `LogResponse` delegates (called immediately before a request is sent and immediately after a response is received), or by providing an `ISimpleHttpLogger`:
