@@ -1,7 +1,7 @@
 # SimpleHttpClient
 [![CI](https://github.com/Mako88/SimpleHttpClient/actions/workflows/ci.yml/badge.svg)](https://github.com/Mako88/SimpleHttpClient/actions/workflows/ci.yml)
 
-An easy-to-use .NET wrapper for `HttpClient`. No extension methods, included interfaces allow for easy unit test mocking, and straightforward properties allow for easier debugging (the response body is available as a string, byte array, and/or a typed object). It also supports streaming responses, with built-in helpers for reading line-delimited streams and Server-Sent Events.
+An easy-to-use .NET wrapper for `HttpClient`. No extension methods, included interfaces for easy unit test mocking, and straightforward properties for easier debugging (the response body is available as a string, byte array, and/or a typed object). It also supports streaming responses, with built-in helpers for reading line-delimited streams and Server-Sent Events.
 
 ## Contents
 - [Installation](#installation)
